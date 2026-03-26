@@ -144,7 +144,8 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Дотоод систем: хэрэглэгчийг зөвхөн админ «Хэрэглэгчид»-аас нэмнэ.
+        // Features::registration(),
         Features::resetPasswords(),
         Features::emailVerification(),
         // Features::updateProfileInformation(),

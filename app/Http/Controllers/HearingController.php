@@ -40,7 +40,13 @@ class HearingController extends Controller
     public function edit(Hearing $hearing)
     {
         $hearing->load('judges');
-        $judges = User::role('judge')->where('is_active', true)->orderBy('name')->get();
+        $selectedJudgeIds = $hearing->judges->pluck('id')->map(fn ($id) => (int) $id)->values();
+        if ($hearing->judge_id) {
+            $selectedJudgeIds->push((int) $hearing->judge_id);
+        }
+        $selectedJudgeIds = $selectedJudgeIds->unique()->values();
+
+        $judges = $this->judgesForHearingForm($selectedJudgeIds);
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $courtrooms = $this->allowedCourtrooms();
@@ -57,7 +63,7 @@ class HearingController extends Controller
         $data = $this->validateHearing($request);
         $data = $this->normalizeFormData($data);
 
-        if (!empty($data['prosecutor_id'])) {
+        if (! empty($data['prosecutor_id'])) {
             $this->assertProsecutorRole($data['prosecutor_id']);
         }
 
@@ -93,7 +99,7 @@ class HearingController extends Controller
                 'end_at' => $end,
                 'duration_minutes' => $duration,
                 'courtroom' => $data['courtroom'],
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
@@ -116,7 +122,7 @@ class HearingController extends Controller
         $data = $this->validateHearing($request);
         $data = $this->normalizeFormData($data);
 
-        if (!empty($data['prosecutor_id'])) {
+        if (! empty($data['prosecutor_id'])) {
             $this->assertProsecutorRole($data['prosecutor_id']);
         }
 
@@ -151,7 +157,7 @@ class HearingController extends Controller
                 'end_at' => $end,
                 'duration_minutes' => $duration,
                 'courtroom' => $data['courtroom'],
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
@@ -171,6 +177,7 @@ class HearingController extends Controller
     public function destroy(Hearing $hearing)
     {
         $hearing->delete();
+
         return back()->with('success', 'Устгалаа.');
     }
 
@@ -210,11 +217,13 @@ class HearingController extends Controller
         try {
             $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
             $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, [], $data['ignore_id'] ?? null, $prosecutorIds);
+
             return response()->json(['ok' => true, 'field' => null]);
         } catch (ValidationException $e) {
             $errors = $e->errors();
             $field = collect(array_keys($errors))->first();
             $msg = collect($errors)->flatten()->first() ?? 'Давхцал илэрлээ.';
+
             return response()->json(['ok' => false, 'field' => $field, 'message' => $msg]);
         }
     }
@@ -253,25 +262,26 @@ class HearingController extends Controller
 
     private function normalizeFormData(array $data): array
     {
-        if (empty($data['defendant_names']) && !empty($data['defendant_names_text'] ?? '')) {
+        if (empty($data['defendant_names']) && ! empty($data['defendant_names_text'] ?? '')) {
             $data['defendant_names'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['defendant_names_text']))));
         }
-        if (empty($data['defendant_lawyers_text']) && !empty($data['defendant_lawyers_text_str'] ?? '')) {
+        if (empty($data['defendant_lawyers_text']) && ! empty($data['defendant_lawyers_text_str'] ?? '')) {
             $data['defendant_lawyers_text'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['defendant_lawyers_text_str']))));
         }
-        if (empty($data['victim_lawyers_text']) && !empty($data['victim_lawyers_text_str'] ?? '')) {
+        if (empty($data['victim_lawyers_text']) && ! empty($data['victim_lawyers_text_str'] ?? '')) {
             $data['victim_lawyers_text'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['victim_lawyers_text_str']))));
         }
-        if (empty($data['victim_legal_rep_lawyers_text']) && !empty($data['victim_legal_rep_lawyers_text_str'] ?? '')) {
+        if (empty($data['victim_legal_rep_lawyers_text']) && ! empty($data['victim_legal_rep_lawyers_text_str'] ?? '')) {
             $data['victim_legal_rep_lawyers_text'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['victim_legal_rep_lawyers_text_str']))));
         }
+
         return $data;
     }
 
     private function assertProsecutorRole(int $userId): void
     {
         $ok = User::whereKey($userId)->role('prosecutor')->exists();
-        if (!$ok) {
+        if (! $ok) {
             throw ValidationException::withMessages([
                 'prosecutor_id' => 'Сонгосон хэрэглэгч прокурор эрхтэй биш байна.',
             ]);

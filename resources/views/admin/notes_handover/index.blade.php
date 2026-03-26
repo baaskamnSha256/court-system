@@ -180,14 +180,8 @@
                                         ->values();
                                 @endphp
 
-                                <div x-show="edit" x-cloak
-                                     x-data="chipSelect({
-                                        options: @js($chipOptions),
-                                        selected: @js($chipSelected),
-                                        single: false,
-                                        placeholder: 'Зүйл анги хайх...',
-                                        nameId: 'notes_decided_matter_ids[]'
-                                     })"
+                                <div 
+                                
                                      x-init="init()"
                                      class="mt-0.5">
                                     <div class="rounded-lg border border-slate-300 bg-white focus-within:ring-1 focus-within:ring-sky-300 focus-within:border-sky-500"

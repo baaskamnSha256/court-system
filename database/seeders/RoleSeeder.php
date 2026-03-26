@@ -16,6 +16,7 @@ class RoleSeeder extends Seeder
             'prosecutor',
             'court_clerk',
             'info_desk',
+            'lawyer',
         ];
 
         foreach ($roles as $role) {

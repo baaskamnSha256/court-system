@@ -11,20 +11,20 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, TwoFactorAuthenticatable, HasRoles;
+    use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
 
-  
+    /** Spatie: нэвтрэхийн дараа hasRole() зөв guard-аар ажиллана. */
+    protected string $guard_name = 'web';
+
     protected $fillable = [
-    'name',
-    'email',
-    'password',
-    'workplace',
-    'is_active',
-    'phone',
-    'register_number',
-
-
-];
+        'name',
+        'email',
+        'password',
+        'workplace',
+        'is_active',
+        'phone',
+        'register_number',
+    ];
 
     protected $hidden = [
         'password',
@@ -49,9 +49,9 @@ class User extends Authenticatable
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
     }
+
     public function hearingsAsJudge()
     {
-    return $this->belongsToMany(\App\Models\Hearing::class, 'hearing_judges', 'judge_id', 'hearing_id');
+        return $this->belongsToMany(\App\Models\Hearing::class, 'hearing_judges', 'judge_id', 'hearing_id');
     }
-
 }

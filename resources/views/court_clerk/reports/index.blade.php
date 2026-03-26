@@ -59,6 +59,12 @@
         'monthTotalHearings' => $summary['total'] ?? 0,
         'monthIssuedHearings' => $summary['issued'] ?? 0,
         'monthPendingHearings' => $summary['pending'] ?? 0,
+        'notesHandoverFilterBaseUrl' => ($notesFilterFrom && $notesFilterTo)
+            ? route('court_clerk.notes.index', [
+                'hearing_date_from' => $notesFilterFrom,
+                'hearing_date_to' => $notesFilterTo,
+            ])
+            : null,
     ])
 
     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">

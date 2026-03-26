@@ -65,7 +65,9 @@
                     </div>
 
             <div>
-                <label class="text-sm font-semibold text-gray-700">Цаг (8–17)</label>
+                <label class="text-sm font-semibold text-gray-700">Цаг (8–17
+                    
+                )</label>
                 <select name="hour" required class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2">
                     <option value="">- Сонгох -</option>
                     @for($h=8;$h<=18;$h++)

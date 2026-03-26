@@ -54,6 +54,11 @@
         'monthTotalHearings' => $summary['total'] ?? 0,
         'monthIssuedHearings' => $summary['issued'] ?? 0,
         'monthPendingHearings' => $summary['pending'] ?? 0,
+        'notesHandoverFilterBaseUrl' => route('admin.notes.index', array_filter([
+            'hearing_date_from' => $dateFrom,
+            'hearing_date_to' => $dateTo,
+            'clerk_id' => $clerkId,
+        ], fn ($v) => $v !== null && $v !== '')),
     ])
 
     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">

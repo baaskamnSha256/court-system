@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
 {
@@ -17,47 +19,138 @@ class LoginController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required','email'],
+        $request->merge([
+            'email' => trim((string) $request->input('email', '')),
+        ]);
+
+        $validated = $request->validate([
+            'email' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $v = trim((string) $value);
+                    if ($v === '') {
+                        return;
+                    }
+                    if (preg_match('/^[0-9]{8}$/', $v) === 1) {
+                        return;
+                    }
+                    if (! filter_var($v, FILTER_VALIDATE_EMAIL)) {
+                        $fail('Зөв имэйл эсвэл 8 оронтой утасны дугаар оруулна уу.');
+                    }
+                },
+            ],
             'password' => ['required'],
         ]);
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+        $identifier = $validated['email'];
+        $isPhone = preg_match('/^[0-9]{8}$/', $identifier) === 1;
 
-            $user = Auth::user();
-            $today = Carbon::today();
+        $user = User::query()
+            ->when($isPhone, fn ($q) => $q->where('phone', $identifier))
+            ->when(! $isPhone, function ($q) use ($identifier) {
+                $normalized = mb_strtolower($identifier, 'UTF-8');
+                $q->whereRaw('LOWER(email) = ?', [$normalized]);
+            })
+            ->first();
 
-            $redirectRoute = 'dashboard';
-            $todayHearingsCount = 0;
+        $storedHash = $user !== null ? $user->getRawOriginal('password') : null;
+        if ($user === null
+            || ! is_string($storedHash)
+            || $storedHash === ''
+            || ! Hash::check($validated['password'], $storedHash)) {
+            return back()->withErrors([
+                'email' => 'Нэвтрэх мэдээлэл буруу байна.',
+            ])->withInput($request->only('email'));
+        }
 
-            if ($user && method_exists($user, 'hasRole')) {
-                if ($user->hasRole('admin')) {
-                    $redirectRoute = 'admin.dashboard';
-                } elseif ($user->hasRole('judge')) {
-                    $redirectRoute = 'judge.dashboard';
-                    $todayHearingsCount = Hearing::query()
+        Auth::login($user, $request->boolean('remember'));
+
+        $request->session()->regenerate();
+
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user !== null && isset($user->is_active) && ! $user->is_active) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'Таны эрх идэвхгүй байна. Системийн админтай холбогдоно уу.',
+            ])->withInput($request->only('email'));
+        }
+
+        $user?->loadMissing('roles');
+
+        $resolved = $this->resolveLoginDestination($user, Carbon::today());
+
+        if ($resolved === null) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'Таны дансад системийн эрх тохируулаагүй байна. Системийн админтай холбогдоно уу.',
+            ])->withInput($request->only('email'));
+        }
+
+        [$redirectRoute, $todayHearingsCount] = $resolved;
+
+        if (in_array($redirectRoute, ['judge.dashboard', 'prosecutor.dashboard', 'lawyer.dashboard'], true)) {
+            $request->session()->flash('show_today_hearings_toast', true);
+            $request->session()->flash('today_hearings_count', $todayHearingsCount);
+        }
+
+        if ($user !== null && $this->userHasRoleName($user, 'court_clerk')) {
+            $request->session()->flash('show_overdue_toast', true);
+        }
+
+        return redirect()->intended(route($redirectRoute));
+    }
+
+    /**
+     * @return array{0: string, 1: int}|null [route name, today hearings count]
+     */
+    private function resolveLoginDestination(?User $user, Carbon $today): ?array
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $priority = ['admin', 'judge', 'secretary', 'court_clerk', 'prosecutor', 'info_desk', 'lawyer'];
+
+        foreach ($priority as $role) {
+            if (! $this->userHasRoleName($user, $role)) {
+                continue;
+            }
+
+            return match ($role) {
+                'admin' => ['admin.dashboard', 0],
+                'secretary' => ['secretary.dashboard', 0],
+                'court_clerk' => ['court_clerk.dashboard', 0],
+                'info_desk' => ['info_desk.dashboard', 0],
+                'judge' => [
+                    'judge.dashboard',
+                    Hearing::query()
                         ->whereDate('start_at', $today)
                         ->whereHas('judges', fn ($query) => $query->where('users.id', $user->id))
-                        ->count();
-                } elseif ($user->hasRole('secretary')) {
-                    $redirectRoute = 'secretary.dashboard';
-                } elseif ($user->hasRole('court_clerk')) {
-                    $redirectRoute = 'court_clerk.dashboard';
-                } elseif ($user->hasRole('prosecutor')) {
-                    $redirectRoute = 'prosecutor.dashboard';
-                    $todayHearingsCount = Hearing::query()
+                        ->count(),
+                ],
+                'prosecutor' => [
+                    'prosecutor.dashboard',
+                    Hearing::query()
                         ->whereDate('start_at', $today)
                         ->where(function ($query) use ($user) {
                             $query->where('prosecutor_id', $user->id)
                                 ->orWhereJsonContains('prosecutor_ids', $user->id);
                         })
-                        ->count();
-                } elseif ($user->hasRole('info_desk')) {
-                    $redirectRoute = 'info_desk.dashboard';
-                } elseif ($user->hasRole('lawyer')) {
-                    $redirectRoute = 'lawyer.dashboard';
-                    $todayHearingsCount = Hearing::query()
+                        ->count(),
+                ],
+                'lawyer' => [
+                    'lawyer.dashboard',
+                    Hearing::query()
                         ->whereDate('start_at', $today)
                         ->where(function ($query) use ($user) {
                             $query->whereJsonContains('defendant_lawyers_text', $user->name)
@@ -66,25 +159,19 @@ class LoginController extends Controller
                                 ->orWhereJsonContains('civil_plaintiff_lawyers', $user->name)
                                 ->orWhereJsonContains('civil_defendant_lawyers', $user->name);
                         })
-                        ->count();
-                }
-            }
-
-            if (in_array($redirectRoute, ['judge.dashboard', 'prosecutor.dashboard', 'lawyer.dashboard'], true)) {
-                $request->session()->flash('show_today_hearings_toast', true);
-                $request->session()->flash('today_hearings_count', $todayHearingsCount);
-            }
-
-            if ($user && method_exists($user, 'hasRole') && $user->hasRole('court_clerk')) {
-                $request->session()->flash('show_overdue_toast', true);
-            }
-
-            return redirect()->intended(route($redirectRoute));
+                        ->count(),
+                ],
+            };
         }
 
-        return back()->withErrors([
-            'email' => 'Нэвтрэх мэдээлэл буруу байна',
-        ]);
+        return null;
+    }
+
+    private function userHasRoleName(User $user, string $role): bool
+    {
+        $needle = mb_strtolower($role);
+
+        return $user->roles->contains(fn ($r) => mb_strtolower((string) $r->name) === $needle);
     }
 
     public function logout(Request $request)

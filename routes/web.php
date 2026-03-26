@@ -1,33 +1,32 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\HearingController;
-use App\Http\Controllers\Admin\HearingsController as AdminHearings;
-use App\Http\Controllers\Secretary\HearingsController as SecretaryHearings;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
-use App\Http\Controllers\Judge\DashboardController as JudgeDashboard;
-use App\Http\Controllers\Secretary\DashboardController as SecretaryDashboard;
-use App\Http\Controllers\Secretary\TextMaskController as SecretaryTextMaskController;
-use App\Http\Controllers\Prosecutor\DashboardController as ProsecutorDashboard;
+use App\Http\Controllers\Admin\HearingPrintController;
+use App\Http\Controllers\Admin\HearingsController as AdminHearings;
+use App\Http\Controllers\Admin\MatterCategoriesController;
+use App\Http\Controllers\Admin\NotesHandoverController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\TextMaskController;
+use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\CourtClerk\DashboardController as CourtClerkDashboard;
+use App\Http\Controllers\DefendantSearchController;
+use App\Http\Controllers\HearingController;
 use App\Http\Controllers\InfoDesk\DashboardController as InfoDeskDashboard;
 use App\Http\Controllers\InfoDesk\HearingPrintController as InfoDeskHearingPrintController;
+use App\Http\Controllers\Judge\DashboardController as JudgeDashboard;
 use App\Http\Controllers\Lawyer\DashboardController as LawyerDashboard;
+use App\Http\Controllers\Prosecutor\DashboardController as ProsecutorDashboard;
 use App\Http\Controllers\Role\HearingsController as RoleHearingsController;
-use App\Http\Controllers\Admin\UsersController;
-use App\Http\Controllers\Admin\HearingPrintController;
-use App\Http\Controllers\Admin\NotesHandoverController;
-use App\Http\Controllers\Admin\TextMaskController;
-use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Admin\MatterCategoriesController;
-use App\Http\Controllers\DefendantSearchController;
+use App\Http\Controllers\Secretary\DashboardController as SecretaryDashboard;
+use App\Http\Controllers\Secretary\HearingsController as SecretaryHearings;
+use App\Http\Controllers\Secretary\TextMaskController as SecretaryTextMaskController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect('/login');
-});
+})->name('home');
 
 /*
 |--------------------------------------------------------------------------
@@ -35,7 +34,9 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login'])->name('login.store');
+Route::post('/login', [LoginController::class, 'login'])
+    ->middleware('throttle:20,1')
+    ->name('login.store');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
@@ -49,13 +50,27 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', function () {
         $u = auth()->user();
-        if ($u->hasRole('admin')) return redirect()->route('admin.dashboard');
-        if ($u->hasRole('judge')) return redirect()->route('judge.dashboard');
-        if ($u->hasRole('secretary')) return redirect()->route('secretary.dashboard');
-        if ($u->hasRole('court_clerk')) return redirect()->route('court_clerk.dashboard');
-        if ($u->hasRole('prosecutor')) return redirect()->route('prosecutor.dashboard');
-        if ($u->hasRole('info_desk')) return redirect()->route('info_desk.dashboard');
-        if ($u->hasRole('lawyer')) return redirect()->route('lawyer.dashboard');
+        if ($u->hasRole('admin')) {
+            return redirect()->route('admin.dashboard');
+        }
+        if ($u->hasRole('judge')) {
+            return redirect()->route('judge.dashboard');
+        }
+        if ($u->hasRole('secretary')) {
+            return redirect()->route('secretary.dashboard');
+        }
+        if ($u->hasRole('court_clerk')) {
+            return redirect()->route('court_clerk.dashboard');
+        }
+        if ($u->hasRole('prosecutor')) {
+            return redirect()->route('prosecutor.dashboard');
+        }
+        if ($u->hasRole('info_desk')) {
+            return redirect()->route('info_desk.dashboard');
+        }
+        if ($u->hasRole('lawyer')) {
+            return redirect()->route('lawyer.dashboard');
+        }
         abort(403);
     })->name('dashboard');
 

@@ -10,6 +10,10 @@
             'today' => $today,
             'decisionOptions' => $decisionOptions ?? [],
             'decisionCounts' => $decisionCounts ?? [],
+            'decisionFilterBaseUrl' => route('admin.notes.index', [
+                'hearing_date_from' => $monthStart->toDateString(),
+                'hearing_date_to' => $monthEnd->toDateString(),
+            ]),
         ])
     </div>
 

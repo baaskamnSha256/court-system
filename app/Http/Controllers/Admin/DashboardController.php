@@ -40,30 +40,44 @@ class DashboardController extends Controller
             ->get()
             ->groupBy(function ($h) {
                 $date = $h->hearing_date ?: $h->start_at;
+
                 return (int) Carbon::parse($date)->format('j');
             })
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        $decisionOptions = [
-            'Шийдвэрлэсэн' => 'Шийдвэрлэсэн',
-            'Хойшилсон' => 'Хойшилсон',
-            'Завсарласан' => 'Завсарласан',
-            'Прокурорт буцаасан' => 'Прокурорт буцаасан',
-            'Яллагдагчийг шүүхэд шилжүүлсэн' => 'Яллагдагчийг шүүхэд шилжүүлсэн',
-            '60 хүртэлх хоногоор хойшлуулсан' => '60 хүртэлх хоногоор хойшлуулсан',
+        $decidedStatuses = [
+            'Шийдвэрлэсэн',
+            'Хойшилсон',
+            'Завсарласан',
+            'Прокурорт буцаасан',
+            'Яллагдагчийг шүүхэд шилжүүлсэн',
+            '60 хүртэлх хоногоор хойшлуулсан',
         ];
+
+        $decisionOptions = [
+            'Хүлээгдэж буй' => 'Хүлээгдэж буй',
+            ...array_fill_keys($decidedStatuses, null),
+        ];
+        foreach ($decidedStatuses as $s) {
+            $decisionOptions[$s] = $s;
+        }
+
+        $totalForMonth = (clone $monthQuery)->count();
+        $decidedTotal = (clone $monthQuery)->whereIn('notes_decision_status', $decidedStatuses)->count();
+        $pendingCount = max(0, $totalForMonth - $decidedTotal);
 
         $rawDecisionCounts = (clone $monthQuery)
             ->select(['notes_decision_status'])
-            ->whereNotNull('notes_decision_status')
+            ->whereIn('notes_decision_status', $decidedStatuses)
             ->get()
             ->groupBy('notes_decision_status')
             ->map(fn ($g) => $g->count())
             ->toArray();
 
         $decisionCounts = [];
-        foreach (array_keys($decisionOptions) as $k) {
+        $decisionCounts['Хүлээгдэж буй'] = $pendingCount;
+        foreach ($decidedStatuses as $k) {
             $decisionCounts[$k] = (int) Arr::get($rawDecisionCounts, $k, 0);
         }
 
@@ -72,7 +86,9 @@ class DashboardController extends Controller
             'today',
             'hearingsCountByDay',
             'decisionOptions',
-            'decisionCounts'
+            'decisionCounts',
+            'monthStart',
+            'monthEnd'
         ));
     }
 }

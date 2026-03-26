@@ -18,6 +18,14 @@ class NotesHandoverController extends Controller
         if ($request->filled('hearing_date')) {
             $query->whereDate('hearing_date', $request->date('hearing_date'));
         }
+        if ($request->filled('hearing_date_from') && $request->filled('hearing_date_to')) {
+            $from = $request->date('hearing_date_from')->startOfDay();
+            $to = $request->date('hearing_date_to')->endOfDay();
+            $query->where(function ($q) use ($from, $to) {
+                $q->whereBetween('hearing_date', [$from->toDateString(), $to->toDateString()])
+                    ->orWhereBetween('start_at', [$from, $to]);
+            });
+        }
         if ($request->filled('q')) {
             $q = trim((string) $request->get('q'));
             $query->where(function ($qq) use ($q) {
@@ -25,6 +33,27 @@ class NotesHandoverController extends Controller
                     ->orWhere('courtroom', 'like', "%{$q}%")
                     ->orWhere('defendants', 'like', "%{$q}%");
             });
+        }
+
+        if ($request->filled('notes_decision_status')) {
+            $status = (string) $request->input('notes_decision_status');
+            if ($status === '__pending__') {
+                $known = [
+                    'Шийдвэрлэсэн',
+                    'Хойшилсон',
+                    'Завсарласан',
+                    'Прокурорт буцаасан',
+                    'Яллагдагчийг шүүхэд шилжүүлсэн',
+                    '60 хүртэлх хоногоор хойшлуулсан',
+                ];
+                $query->where(function ($q) use ($known) {
+                    $q->whereNull('notes_decision_status')
+                        ->orWhere('notes_decision_status', '')
+                        ->orWhereNotIn('notes_decision_status', $known);
+                });
+            } else {
+                $query->where('notes_decision_status', $status);
+            }
         }
 
         $hearings = $query
@@ -50,7 +79,7 @@ class NotesHandoverController extends Controller
     public function update(Request $request, Hearing $hearing)
     {
         // Secretary зөвхөн өөрийн оруулсан хурлыг засна
-        if ((int)$hearing->created_by !== (int)auth()->id()) {
+        if ((int) $hearing->created_by !== (int) auth()->id()) {
             abort(403, 'Та зөвхөн өөрийн оруулсан хурлын тэмдэглэлийг шинэчилж чадна.');
         }
         $oldClerkId = $hearing->clerk_id;
@@ -74,20 +103,20 @@ class NotesHandoverController extends Controller
         // Secretary мөн нарийн бичиг, тэмдэглэл гаргасан эсэхийг тэмдэглэж чадна (таны шаардлагаар адилхан)
         $hearing->clerk_id = $data['clerk_id'] ?? null;
         if (($data['clerk_id'] ?? null) !== $oldClerkId) {
-            $hearing->notes_clerk_selected_at = !empty($data['clerk_id']) ? now() : null;
+            $hearing->notes_clerk_selected_at = ! empty($data['clerk_id']) ? now() : null;
         }
-        $issued = (bool)($data['notes_handover_issued'] ?? false);
+        $issued = (bool) ($data['notes_handover_issued'] ?? false);
         $hearing->notes_handover_issued = $issued;
-        if ($issued && !$oldIssued) {
+        if ($issued && ! $oldIssued) {
             $hearing->notes_handover_issued_at = now();
             $hearing->notes_handover_saved_at = now();
-        } elseif (!$issued) {
+        } elseif (! $issued) {
             $hearing->notes_handover_issued_at = null;
         }
 
         $hearing->notes_handover_text = $data['notes_handover_text'] ?? $hearing->notes_handover_text;
 
-        if (!empty($data['notes_decided_matter_ids']) && is_array($data['notes_decided_matter_ids'])) {
+        if (! empty($data['notes_decided_matter_ids']) && is_array($data['notes_decided_matter_ids'])) {
             $ids = array_map('intval', $data['notes_decided_matter_ids']);
             $names = MatterCategory::whereIn('id', $ids)->orderBy('sort_order')->pluck('name')->all();
             $hearing->notes_decided_matter = $names ? implode(', ', $names) : null;
@@ -104,4 +133,3 @@ class NotesHandoverController extends Controller
         return back()->with('success', 'Тэмдэглэл амжилттай хадгаллаа.');
     }
 }
-

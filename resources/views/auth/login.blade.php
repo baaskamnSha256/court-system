@@ -48,13 +48,14 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('login.store') }}" class="space-y-5" novalidate>
+                <form method="POST" action="{{ route('login.store') }}" class="space-y-5">
                     @csrf
 
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Имэйл</label>
-                        <input type="email" name="email" required autofocus value="{{ old('email') }}"
-                               placeholder="example@court.mn"
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Имэйл эсвэл утас</label>
+                        <input type="text" name="email" required autofocus value="{{ old('email') }}"
+                               placeholder="example@court.mn эсвэл 8 оронтой дугаар"
+                               autocomplete="username"
                                class="w-full rounded-xl border-slate-300 bg-slate-50/50 px-4 py-2.5 text-slate-800 placeholder-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:bg-white transition-colors">
                         @error('email')<p class="mt-1 text-red-600 text-sm">{{ $message }}</p>@enderror
                     </div>

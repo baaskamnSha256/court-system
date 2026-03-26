@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Hearing;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 trait ManagesHearingLogic
@@ -71,6 +73,7 @@ trait ManagesHearingLogic
         ];
         $ids = array_filter($ids);
         $ids = array_map('intval', $ids);
+
         return array_values(array_unique($ids));
     }
 
@@ -83,6 +86,7 @@ trait ManagesHearingLogic
     {
         $start = Carbon::parse($date)->setTime($hour, $minute, 0);
         $end = (clone $start)->addMinutes($durationMinutes);
+
         return [$start, $end];
     }
 
@@ -151,10 +155,10 @@ trait ManagesHearingLogic
                 ->where(function ($w) use ($names) {
                     foreach ($names as $name) {
                         $w->orWhereJsonContains('defendant_lawyers_text', $name)
-                          ->orWhereJsonContains('victim_lawyers_text', $name)
-                          ->orWhereJsonContains('victim_legal_rep_lawyers_text', $name)
-                          ->orWhereJsonContains('civil_plaintiff_lawyers', $name)
-                          ->orWhereJsonContains('civil_defendant_lawyers', $name);
+                            ->orWhereJsonContains('victim_lawyers_text', $name)
+                            ->orWhereJsonContains('victim_legal_rep_lawyers_text', $name)
+                            ->orWhereJsonContains('civil_plaintiff_lawyers', $name)
+                            ->orWhereJsonContains('civil_defendant_lawyers', $name);
                     }
                 });
 
@@ -196,6 +200,47 @@ trait ManagesHearingLogic
         }
     }
 
+    /**
+     * Идэвхтэй шүүгчид + энэ хурлын сонгогдсон шүүгчүүд (эрх эсвэл идэвхгүй байсан ч pivot-д байгаа бол харагдана).
+     *
+     * @param  Collection<int, int|string|null>  $selectedJudgeIds
+     * @return Collection<int, User>
+     */
+    protected function judgesForHearingForm(Collection $selectedJudgeIds): Collection
+    {
+        $selectedJudgeIds = $selectedJudgeIds
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $judges = User::role('judge')
+            ->where(function ($query) {
+                $query->where('is_active', true)
+                    ->orWhereNull('is_active');
+            })
+            ->orderBy('name')
+            ->get();
+
+        if ($selectedJudgeIds->isEmpty()) {
+            return $judges;
+        }
+
+        $existingIds = $judges->pluck('id')->map(fn ($id) => (int) $id);
+        $missingIds = $selectedJudgeIds->diff($existingIds);
+
+        if ($missingIds->isEmpty()) {
+            return $judges;
+        }
+
+        $extra = User::query()
+            ->whereIn('id', $missingIds->all())
+            ->orderBy('name')
+            ->get();
+
+        return $judges->merge($extra)->unique('id')->sortBy('name')->values();
+    }
+
     protected function syncJudgesPivot(Hearing $hearing, Request $request): void
     {
         $presiding = (int) $request->input('presiding_judge_id');
@@ -210,8 +255,12 @@ trait ManagesHearingLogic
         }
 
         $sync = [$presiding => ['position' => 1]];
-        if ($m1) $sync[$m1] = ['position' => 2];
-        if ($m2) $sync[$m2] = ['position' => 3];
+        if ($m1) {
+            $sync[$m1] = ['position' => 2];
+        }
+        if ($m2) {
+            $sync[$m2] = ['position' => 3];
+        }
 
         $hearing->judges()->sync($sync);
     }

@@ -2,16 +2,15 @@
 
 namespace App\Http\Controllers\Secretary;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\ManagesHearingLogic;
+use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class HearingsController extends Controller
 {
@@ -27,7 +26,7 @@ class HearingsController extends Controller
 
         // Хайлт
         if ($request->filled('q')) {
-            $q = '%' . $request->input('q') . '%';
+            $q = '%'.$request->input('q').'%';
             $query->where(function ($w) use ($q) {
                 $w->where('case_no', 'like', $q)
                     ->orWhere('courtroom', 'like', $q)
@@ -57,7 +56,13 @@ class HearingsController extends Controller
 
     public function create()
     {
-        $judges = User::role('judge')->where('is_active', true)->orderBy('name')->get();
+        $judges = User::role('judge')
+            ->where(function ($query) {
+                $query->where('is_active', true)
+                    ->orWhereNull('is_active');
+            })
+            ->orderBy('name')
+            ->get();
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
@@ -77,12 +82,17 @@ class HearingsController extends Controller
     /** Тухайн өдрийн хуралууд (JSON) — create хуудсын хажуу талд харуулах. */
     public function byDate(Request $request)
     {
-        $request->validate(['date' => ['required', 'date']]);
+        $request->validate([
+            'date' => ['required', 'date'],
+            'ignore_id' => ['nullable', 'integer'],
+        ]);
         $date = $request->input('date');
+        $ignoreId = $request->integer('ignore_id');
 
         $hearings = Hearing::query()
             ->with(['judges', 'prosecutor'])
             ->whereDate('start_at', $date)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
             ->orderBy('start_at')
             ->orderBy('courtroom')
             ->get();
@@ -105,7 +115,7 @@ class HearingsController extends Controller
                 return [
                     'id' => $h->id,
                     'start_time' => optional($h->start_at)->format('H:i'),
-                    'courtroom_label' => $h->courtroom ? $h->courtroom . ' заал' : '—',
+                    'courtroom_label' => $h->courtroom ? $h->courtroom.' заал' : '—',
                     'judge_names' => $h->relationLoaded('judges') ? $h->judges->pluck('name')->implode(', ') : '—',
                     'prosecutor_name' => $prosecutorName,
                     'lawyer_names' => $lawyer_names,
@@ -125,7 +135,26 @@ class HearingsController extends Controller
         abort_unless((int) $hearing->created_by === (int) auth()->id(), 403);
 
         $hearing->load('judges');
-        $judges = User::role('judge')->where('is_active', true)->orderBy('name')->get();
+        $selectedJudgeIds = $hearing->judges->pluck('id')->map(fn ($id) => (int) $id)->values();
+        if ($hearing->judge_id) {
+            $selectedJudgeIds->push((int) $hearing->judge_id);
+        }
+        if ($selectedJudgeIds->isEmpty() && ! empty($hearing->judge_names_text)) {
+            $judgeNames = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/u', (string) $hearing->judge_names_text))));
+            if (! empty($judgeNames)) {
+                $fallbackIds = User::query()
+                    ->whereIn('name', $judgeNames)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+                foreach ($fallbackIds as $id) {
+                    $selectedJudgeIds->push($id);
+                }
+            }
+        }
+        $selectedJudgeIds = $selectedJudgeIds->unique()->values();
+
+        $judges = $this->judgesForHearingForm($selectedJudgeIds);
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
@@ -145,7 +174,10 @@ class HearingsController extends Controller
 
     private function parseTextToArray(?string $text): array
     {
-        if (empty($text)) return [];
+        if (empty($text)) {
+            return [];
+        }
+
         return array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $text))));
     }
 
@@ -154,7 +186,7 @@ class HearingsController extends Controller
         $data = $this->validateHearing($request);
         $data = $this->normalizeFormData($data);
 
-        if (!empty($data['prosecutor_id'])) {
+        if (! empty($data['prosecutor_id'])) {
             $this->assertProsecutorRole($data['prosecutor_id']);
         }
 
@@ -194,7 +226,7 @@ class HearingsController extends Controller
                 'end_at' => $end,
                 'duration_minutes' => $duration,
                 'courtroom' => $data['courtroom'],
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
@@ -223,21 +255,22 @@ class HearingsController extends Controller
 
     private function normalizeFormData(array $data): array
     {
-        if (empty($data['defendant_names']) && !empty($data['defendants'] ?? '')) {
+        if (empty($data['defendant_names']) && ! empty($data['defendants'] ?? '')) {
             $data['defendant_names'] = $this->parseTextToArray($data['defendants']);
         }
-        if (empty($data['defendant_names']) && !empty($data['defendant_names_text'] ?? '')) {
+        if (empty($data['defendant_names']) && ! empty($data['defendant_names_text'] ?? '')) {
             $data['defendant_names'] = $this->parseTextToArray($data['defendant_names_text']);
         }
-        if (empty($data['defendant_lawyers_text']) && !empty($data['defendant_lawyers_text_str'] ?? '')) {
+        if (empty($data['defendant_lawyers_text']) && ! empty($data['defendant_lawyers_text_str'] ?? '')) {
             $data['defendant_lawyers_text'] = $this->parseTextToArray($data['defendant_lawyers_text_str']);
         }
-        if (empty($data['victim_lawyers_text']) && !empty($data['victim_lawyers_text_str'] ?? '')) {
+        if (empty($data['victim_lawyers_text']) && ! empty($data['victim_lawyers_text_str'] ?? '')) {
             $data['victim_lawyers_text'] = $this->parseTextToArray($data['victim_lawyers_text_str']);
         }
-        if (empty($data['victim_legal_rep_lawyers_text']) && !empty($data['victim_legal_rep_lawyers_text_str'] ?? '')) {
+        if (empty($data['victim_legal_rep_lawyers_text']) && ! empty($data['victim_legal_rep_lawyers_text_str'] ?? '')) {
             $data['victim_legal_rep_lawyers_text'] = $this->parseTextToArray($data['victim_legal_rep_lawyers_text_str']);
         }
+
         return $data;
     }
 
@@ -248,7 +281,7 @@ class HearingsController extends Controller
         $data = $this->validateHearing($request);
         $data = $this->normalizeFormData($data);
 
-        if (!empty($data['prosecutor_id'])) {
+        if (! empty($data['prosecutor_id'])) {
             $this->assertProsecutorRole($data['prosecutor_id']);
         }
 
@@ -287,7 +320,7 @@ class HearingsController extends Controller
                 'end_at' => $end,
                 'duration_minutes' => $duration,
                 'courtroom' => $data['courtroom'],
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
@@ -321,6 +354,7 @@ class HearingsController extends Controller
         abort_unless((int) $hearing->created_by === (int) auth()->id(), 403, 'Та зөвхөн өөрийн оруулсан хурлын зарыг устгах эрхтэй.');
         $hearing->judges()->detach();
         $hearing->delete();
+
         return redirect()->route('secretary.hearings.index')->with('success', 'Хурлын зар устгагдлаа.');
     }
 
@@ -378,11 +412,13 @@ class HearingsController extends Controller
         try {
             $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
             $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, $data['ignore_id'] ?? null, $prosecutorIds);
+
             return response()->json(['ok' => true]);
         } catch (ValidationException $e) {
             $errors = $e->errors();
             $field = collect(array_keys($errors))->first();
             $msg = collect($errors)->flatten()->first() ?? 'Давхцал илэрлээ.';
+
             return response()->json(['ok' => false, 'field' => $field, 'message' => $msg]);
         }
     }
@@ -436,17 +472,17 @@ class HearingsController extends Controller
             'preventive_measure.*.in' => 'Таслан сэргийлэх арга хэмжээний сонголт буруу байна. Зөвхөн жагсаалтаас сонгоно уу.',
         ]);
         $data['title'] = $data['title'] ?? $data['hearing_state'] ?? 'Хэвийн';
+
         return $data;
     }
 
     private function assertProsecutorRole(int $userId): void
     {
         $ok = User::whereKey($userId)->role('prosecutor')->exists();
-        if (!$ok) {
+        if (! $ok) {
             throw ValidationException::withMessages([
                 'prosecutor_id' => 'Сонгосон хэрэглэгч прокурор эрхтэй биш байна.',
             ]);
         }
     }
-
 }

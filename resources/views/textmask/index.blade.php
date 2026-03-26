@@ -50,8 +50,7 @@
                 </label>
                 <label class="flex items-center gap-2 text-sm text-slate-700">
                     <input type="checkbox" name="auto_initial_name" value="1" class="rounded border-slate-300" @checked(old('auto_initial_name'))>
-                    Нэр нууцлах 
-                    
+                    Нэр нууцлах (инициал + эхний үсэг үлдээж)
                 </label>
                 <div class="flex items-center gap-2">
                     <label class="text-sm text-slate-700">Нууцлах тэмдэг:</label>

@@ -29,6 +29,8 @@ class ReportController extends Controller
             'issued' => 0,
             'pending' => 0,
         ];
+        $notesFilterFrom = null;
+        $notesFilterTo = null;
         $monthlyRows = [];
         $dailyRows = [];
 
@@ -37,11 +39,15 @@ class ReportController extends Controller
             $summary['total'] = array_sum(array_column($monthlyRows, 'total'));
             $summary['issued'] = array_sum(array_column($monthlyRows, 'issued'));
             $summary['pending'] = max(0, $summary['total'] - $summary['issued']);
+            $notesFilterFrom = Carbon::create($year, 1, 1)->toDateString();
+            $notesFilterTo = Carbon::create($year, 12, 31)->toDateString();
         } else {
             // Only compute when both dates are present; otherwise show zeros and let user choose.
             if ($dateFrom && $dateTo) {
                 $from = Carbon::parse($dateFrom)->startOfDay();
                 $to = Carbon::parse($dateTo)->endOfDay();
+                $notesFilterFrom = $from->toDateString();
+                $notesFilterTo = $to->toDateString();
 
                 $base = $this->baseQuery($userId, $from, $to);
 
@@ -57,11 +63,13 @@ class ReportController extends Controller
                     ->get()
                     ->groupBy(function ($h) {
                         $d = $h->hearing_date ?: $h->start_at;
+
                         return Carbon::parse($d)->format('Y-m-d');
                     })
                     ->map(function ($group, $date) {
                         $total = $group->count();
                         $issued = $group->where('notes_handover_issued', true)->count();
+
                         return [
                             'date' => $date,
                             'total' => $total,
@@ -86,6 +94,8 @@ class ReportController extends Controller
             'summary' => $summary,
             'monthlyRows' => $monthlyRows,
             'dailyRows' => $dailyRows,
+            'notesFilterFrom' => $notesFilterFrom,
+            'notesFilterTo' => $notesFilterTo,
             'exportLimit' => self::EXPORT_LIMIT,
         ]);
     }
@@ -97,10 +107,11 @@ class ReportController extends Controller
 
         if ($year) {
             $rows = $this->buildMonthlyRows($userId, $year);
+
             return $this->downloadMonthly($rows, $year);
         }
 
-        if (!$request->filled('date_from') || !$request->filled('date_to')) {
+        if (! $request->filled('date_from') || ! $request->filled('date_to')) {
             return back()->with('error', 'Excel татахын өмнө эхлэх ба дуусах огноог заавал сонгоно уу.');
         }
 
@@ -116,11 +127,13 @@ class ReportController extends Controller
             ->get()
             ->groupBy(function ($h) {
                 $d = $h->hearing_date ?: $h->start_at;
+
                 return Carbon::parse($d)->format('Y-m-d');
             })
             ->map(function ($group, $date) {
                 $total = $group->count();
                 $issued = $group->where('notes_handover_issued', true)->count();
+
                 return [
                     'date' => $date,
                     'total' => $total,
@@ -162,12 +175,13 @@ class ReportController extends Controller
                 'pending' => max(0, $total - $issued),
             ];
         }
+
         return $rows;
     }
 
     private function downloadMonthly(array $rows, int $year)
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Тайлан');
 
@@ -201,7 +215,7 @@ class ReportController extends Controller
 
     private function downloadDaily(array $rows, Carbon $from, Carbon $to)
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Тайлан');
 
@@ -225,7 +239,7 @@ class ReportController extends Controller
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $fileName = 'тайлан_' . $from->format('Ymd') . '_' . $to->format('Ymd') . '.xlsx';
+        $fileName = 'тайлан_'.$from->format('Ymd').'_'.$to->format('Ymd').'.xlsx';
         $writer = new Xlsx($spreadsheet);
 
         return response()->streamDownload(function () use ($writer) {
@@ -235,4 +249,3 @@ class ReportController extends Controller
         ]);
     }
 }
-

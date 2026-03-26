@@ -2,16 +2,15 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\ManagesHearingLogic;
+use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class HearingsController extends Controller
 {
@@ -27,7 +26,7 @@ class HearingsController extends Controller
 
         // Хайлт
         if ($request->filled('q')) {
-            $q = '%' . $request->input('q') . '%';
+            $q = '%'.$request->input('q').'%';
             $query->where(function ($w) use ($q) {
                 $w->where('case_no', 'like', $q)
                     ->orWhere('courtroom', 'like', $q)
@@ -70,7 +69,13 @@ class HearingsController extends Controller
 
     public function create()
     {
-        $judges = User::role('judge')->where('is_active', true)->orderBy('name')->get();
+        $judges = User::role('judge')
+            ->where(function ($query) {
+                $query->where('is_active', true)
+                    ->orWhereNull('is_active');
+            })
+            ->orderBy('name')
+            ->get();
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
@@ -90,12 +95,17 @@ class HearingsController extends Controller
     /** Тухайн өдрийн хуралууд (JSON) — create хуудсын хажуу талд харуулах. Эхлэх цагаар эрэмбэлнэ, ижил цагт заалын нэрээр. */
     public function byDate(Request $request)
     {
-        $request->validate(['date' => ['required', 'date']]);
+        $request->validate([
+            'date' => ['required', 'date'],
+            'ignore_id' => ['nullable', 'integer'],
+        ]);
         $date = $request->input('date');
+        $ignoreId = $request->integer('ignore_id');
 
         $hearings = Hearing::query()
             ->with(['judges', 'prosecutor'])
             ->whereDate('start_at', $date)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
             ->orderBy('start_at')
             ->orderBy('courtroom')
             ->get();
@@ -116,7 +126,7 @@ class HearingsController extends Controller
                 return [
                     'id' => $h->id,
                     'start_time' => optional($h->start_at)->format('H:i'),
-                    'courtroom_label' => $h->courtroom ? $h->courtroom . ' заал' : '—',
+                    'courtroom_label' => $h->courtroom ? $h->courtroom.' заал' : '—',
                     'judge_names' => $h->relationLoaded('judges') ? $h->judges->pluck('name')->implode(', ') : '—',
                     'prosecutor_name' => $prosecutorName,
                     'lawyer_names' => $lawyer_names,
@@ -152,13 +162,14 @@ class HearingsController extends Controller
         }
         $textToNames = function ($key, $fallback) use ($request) {
             $arr = $request->input($key, []);
-            if (is_array($arr) && !empty($arr)) {
+            if (is_array($arr) && ! empty($arr)) {
                 return $arr;
             }
             $s = $request->input($fallback);
-            if (!is_string($s) || trim($s) === '') {
+            if (! is_string($s) || trim($s) === '') {
                 return [];
             }
+
             return array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $s))));
         };
         if (empty($data['victim_names'])) {
@@ -179,9 +190,10 @@ class HearingsController extends Controller
         if (empty($data['civil_defendant_names'])) {
             $data['civil_defendant_names'] = $textToNames('civil_defendant_names', 'civil_defendant');
         }
-        if (empty($data['prosecutor_ids']) && !empty($data['prosecutor_id'])) {
-            $data['prosecutor_ids'] = [(int)$data['prosecutor_id']];
+        if (empty($data['prosecutor_ids']) && ! empty($data['prosecutor_id'])) {
+            $data['prosecutor_ids'] = [(int) $data['prosecutor_id']];
         }
+
         return $data;
     }
 
@@ -194,12 +206,31 @@ class HearingsController extends Controller
     public function edit(Hearing $hearing)
     {
         // ✅ Secretary зөвхөн өөрийн оруулсан хурлыг засна
-        if (auth()->user()->hasRole('secretary') && (int)$hearing->created_by !== (int)auth()->id()) {
+        if (auth()->user()->hasRole('secretary') && (int) $hearing->created_by !== (int) auth()->id()) {
             abort(403, 'Та зөвхөн өөрийн оруулсан хурлын зарыг засварлах эрхтэй.');
         }
 
         $hearing->load('judges');
-        $judges = User::role('judge')->where('is_active', true)->orderBy('name')->get();
+        $selectedJudgeIds = $hearing->judges->pluck('id')->map(fn ($id) => (int) $id)->values();
+        if ($hearing->judge_id) {
+            $selectedJudgeIds->push((int) $hearing->judge_id);
+        }
+        if ($selectedJudgeIds->isEmpty() && ! empty($hearing->judge_names_text)) {
+            $judgeNames = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/u', (string) $hearing->judge_names_text))));
+            if (! empty($judgeNames)) {
+                $fallbackIds = User::query()
+                    ->whereIn('name', $judgeNames)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+                foreach ($fallbackIds as $id) {
+                    $selectedJudgeIds->push($id);
+                }
+            }
+        }
+        $selectedJudgeIds = $selectedJudgeIds->unique()->values();
+
+        $judges = $this->judgesForHearingForm($selectedJudgeIds);
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
@@ -225,79 +256,79 @@ class HearingsController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'case_no' => ['required','string','max:255'],
-            'hearing_state' => ['required','string', Rule::in($this->allowedHearingStates())],
+            'case_no' => ['required', 'string', 'max:255'],
+            'hearing_state' => ['required', 'string', Rule::in($this->allowedHearingStates())],
 
-            'hearing_type' => ['nullable','string', Rule::in(['Анхан шат','Урьдчилсан хэлэлцүүлэг'])],
+            'hearing_type' => ['nullable', 'string', Rule::in(['Анхан шат', 'Урьдчилсан хэлэлцүүлэг'])],
 
-            'hearing_date' => ['required','date'],
-            'hour' => ['required','integer','min:8','max:18'],
-            'minute' => ['required','integer', Rule::in($this->allowedMinutes())],
+            'hearing_date' => ['required', 'date'],
+            'hour' => ['required', 'integer', 'min:8', 'max:18'],
+            'minute' => ['required', 'integer', Rule::in($this->allowedMinutes())],
 
-            'courtroom' => ['required','string', Rule::in($this->allowedCourtrooms())],
+            'courtroom' => ['required', 'string', Rule::in($this->allowedCourtrooms())],
 
-            'presiding_judge_id' => ['required','integer','exists:users,id'],
-            'member_judge_1_id' => ['nullable','integer','exists:users,id','required_with:member_judge_2_id'],
-            'member_judge_2_id' => ['nullable','integer','exists:users,id','required_with:member_judge_1_id'],
+            'presiding_judge_id' => ['required', 'integer', 'exists:users,id'],
+            'member_judge_1_id' => ['nullable', 'integer', 'exists:users,id', 'required_with:member_judge_2_id'],
+            'member_judge_2_id' => ['nullable', 'integer', 'exists:users,id', 'required_with:member_judge_1_id'],
 
             // 2) Шүүгдэгч (multi, гараас) — array эсвэл defendants текстээр
-            'defendant_names' => ['required','array','min:1'],
-            'defendant_names.*' => ['required','string','max:255'],
-            'defendants' => ['nullable','string'],
+            'defendant_names' => ['required', 'array', 'min:1'],
+            'defendant_names.*' => ['required', 'string', 'max:255'],
+            'defendants' => ['nullable', 'string'],
 
-            'victim_names' => ['nullable','array'],
-            'victim_names.*' => ['nullable','string','max:255'],
-            'victim_name' => ['nullable','string'],
-            'victim_legal_rep_names' => ['nullable','array'],
-            'victim_legal_rep_names.*' => ['nullable','string','max:255'],
-            'victim_legal_rep' => ['nullable','string'],
-            'witness_names' => ['nullable','array'],
-            'witness_names.*' => ['nullable','string','max:255'],
-            'witnesses' => ['nullable','string'],
-            'expert_names' => ['nullable','array'],
-            'expert_names.*' => ['nullable','string','max:255'],
-            'experts' => ['nullable','string'],
-            'civil_plaintiff_names' => ['nullable','array'],
-            'civil_plaintiff_names.*' => ['nullable','string','max:255'],
-            'civil_plaintiff' => ['nullable','string'],
-            'civil_defendant_names' => ['nullable','array'],
-            'civil_defendant_names.*' => ['nullable','string','max:255'],
-            'civil_defendant' => ['nullable','string'],
+            'victim_names' => ['nullable', 'array'],
+            'victim_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_name' => ['nullable', 'string'],
+            'victim_legal_rep_names' => ['nullable', 'array'],
+            'victim_legal_rep_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep' => ['nullable', 'string'],
+            'witness_names' => ['nullable', 'array'],
+            'witness_names.*' => ['nullable', 'string', 'max:255'],
+            'witnesses' => ['nullable', 'string'],
+            'expert_names' => ['nullable', 'array'],
+            'expert_names.*' => ['nullable', 'string', 'max:255'],
+            'experts' => ['nullable', 'string'],
+            'civil_plaintiff_names' => ['nullable', 'array'],
+            'civil_plaintiff_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff' => ['nullable', 'string'],
+            'civil_defendant_names' => ['nullable', 'array'],
+            'civil_defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant' => ['nullable', 'string'],
 
             // таслан сэргийлэх арга хэмжээ (олон сонголт)
-            'preventive_measure' => ['required','array','min:1'],
-            'preventive_measure.*' => ['required','string', Rule::in($this->allowedPreventiveMeasures())],
+            'preventive_measure' => ['required', 'array', 'min:1'],
+            'preventive_measure.*' => ['required', 'string', Rule::in($this->allowedPreventiveMeasures())],
 
             // 3) прокурор (олон сонголт, системд бүртгэлтэй)
-            'prosecutor_ids' => ['required','array','min:1'],
-            'prosecutor_ids.*' => ['required','integer','exists:users,id'],
-            'prosecutor_id' => ['nullable','integer','exists:users,id'],
+            'prosecutor_ids' => ['required', 'array', 'min:1'],
+            'prosecutor_ids.*' => ['required', 'integer', 'exists:users,id'],
+            'prosecutor_id' => ['nullable', 'integer', 'exists:users,id'],
 
             // 4-6 өмгөөлөгчид (гараас multi) — _text эсвэл хуучин defendant_lawyers гэж ирж болно
-            'defendant_lawyers_text' => ['nullable','array'],
-            'defendant_lawyers_text.*' => ['nullable','string','max:255'],
-            'defendant_lawyers' => ['nullable','array'],
-            'defendant_lawyers.*' => ['nullable','string','max:255'],
+            'defendant_lawyers_text' => ['nullable', 'array'],
+            'defendant_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'defendant_lawyers' => ['nullable', 'array'],
+            'defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'victim_lawyers_text' => ['nullable','array'],
-            'victim_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_lawyers' => ['nullable','array'],
-            'victim_lawyers.*' => ['nullable','string','max:255'],
+            'victim_lawyers_text' => ['nullable', 'array'],
+            'victim_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_lawyers' => ['nullable', 'array'],
+            'victim_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'victim_legal_rep_lawyers_text' => ['nullable','array'],
-            'victim_legal_rep_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_legal_rep_lawyers' => ['nullable','array'],
-            'victim_legal_rep_lawyers.*' => ['nullable','string','max:255'],
+            'victim_legal_rep_lawyers_text' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_lawyers' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'civil_plaintiff_lawyers' => ['nullable','array'],
-            'civil_plaintiff_lawyers.*' => ['nullable','string','max:255'],
-            'civil_defendant_lawyers' => ['nullable','array'],
-            'civil_defendant_lawyers.*' => ['nullable','string','max:255'],
+            'civil_plaintiff_lawyers' => ['nullable', 'array'],
+            'civil_plaintiff_lawyers.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_lawyers' => ['nullable', 'array'],
+            'civil_defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'matter_category_ids' => ['nullable','array'],
-            'matter_category_ids.*' => ['nullable','integer','exists:matter_categories,id'],
+            'matter_category_ids' => ['nullable', 'array'],
+            'matter_category_ids.*' => ['nullable', 'integer', 'exists:matter_categories,id'],
 
-            'note' => ['nullable','string'],
+            'note' => ['nullable', 'string'],
         ], [
             'preventive_measure.*.in' => 'Таслан сэргийлэх арга хэмжээний сонголт буруу байна. Зөвхөн жагсаалтаас сонгоно уу.',
         ]);
@@ -306,11 +337,11 @@ class HearingsController extends Controller
 
         // Прокурор IDs цэгцлэх (олон сонголт); prosecutor_id-аас унших fallback
         $prosecutorIds = array_values(array_filter(array_map('intval', $data['prosecutor_ids'] ?? [])));
-        if (empty($prosecutorIds) && !empty($data['prosecutor_id'])) {
-            $prosecutorIds = [(int)$data['prosecutor_id']];
+        if (empty($prosecutorIds) && ! empty($data['prosecutor_id'])) {
+            $prosecutorIds = [(int) $data['prosecutor_id']];
         }
         foreach ($prosecutorIds as $pid) {
-            if (!User::whereKey($pid)->role('prosecutor')->exists()) {
+            if (! User::whereKey($pid)->role('prosecutor')->exists()) {
                 throw ValidationException::withMessages([
                     'prosecutor_ids' => 'Сонгосон хэрэглэгч прокурор эрхтэй биш байна.',
                 ]);
@@ -331,8 +362,8 @@ class HearingsController extends Controller
 
         [$start, $end] = $this->buildStartEnd(
             $data['hearing_date'],
-            (int)$data['hour'],
-            (int)$data['minute'],
+            (int) $data['hour'],
+            (int) $data['minute'],
             $duration
         );
 
@@ -358,8 +389,8 @@ class HearingsController extends Controller
                 'hearing_state' => $data['hearing_state'] ?? 'Хэвийн',
 
                 'hearing_date' => $data['hearing_date'],
-                'hour' => (int)$data['hour'],
-                'minute' => (int)$data['minute'],
+                'hour' => (int) $data['hour'],
+                'minute' => (int) $data['minute'],
 
                 'start_at' => $start,
                 'end_at' => $end,
@@ -367,7 +398,7 @@ class HearingsController extends Controller
 
                 'courtroom' => $data['courtroom'],
 
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $prosecutorIds[0] ?? null,
@@ -410,78 +441,78 @@ class HearingsController extends Controller
     public function update(Request $request, Hearing $hearing)
     {
         // ✅ Secretary зөвхөн өөрийн оруулсан хурлыг шинэчилнэ
-        if (auth()->user()->hasRole('secretary') && (int)$hearing->created_by !== (int)auth()->id()) {
+        if (auth()->user()->hasRole('secretary') && (int) $hearing->created_by !== (int) auth()->id()) {
             abort(403, 'Та зөвхөн өөрийн оруулсан хурлын зарыг шинэчлэх эрхтэй.');
         }
 
         $data = $request->validate([
-            'case_no' => ['required','string','max:255'],
-            'hearing_state' => ['required','string', Rule::in($this->allowedHearingStates())],
-            'hearing_type' => ['nullable','string', Rule::in(['Анхан шат','Урьдчилсан хэлэлцүүлэг'])],
+            'case_no' => ['required', 'string', 'max:255'],
+            'hearing_state' => ['required', 'string', Rule::in($this->allowedHearingStates())],
+            'hearing_type' => ['nullable', 'string', Rule::in(['Анхан шат', 'Урьдчилсан хэлэлцүүлэг'])],
 
-            'hearing_date' => ['required','date'],
-            'hour' => ['required','integer','min:8','max:18'],
-            'minute' => ['required','integer', Rule::in($this->allowedMinutes())],
+            'hearing_date' => ['required', 'date'],
+            'hour' => ['required', 'integer', 'min:8', 'max:18'],
+            'minute' => ['required', 'integer', Rule::in($this->allowedMinutes())],
 
-            'courtroom' => ['required','string', Rule::in($this->allowedCourtrooms())],
+            'courtroom' => ['required', 'string', Rule::in($this->allowedCourtrooms())],
 
-            'presiding_judge_id' => ['required','integer','exists:users,id'],
-            'member_judge_1_id' => ['nullable','integer','exists:users,id','required_with:member_judge_2_id'],
-            'member_judge_2_id' => ['nullable','integer','exists:users,id','required_with:member_judge_1_id'],
+            'presiding_judge_id' => ['required', 'integer', 'exists:users,id'],
+            'member_judge_1_id' => ['nullable', 'integer', 'exists:users,id', 'required_with:member_judge_2_id'],
+            'member_judge_2_id' => ['nullable', 'integer', 'exists:users,id', 'required_with:member_judge_1_id'],
 
-            'defendant_names' => ['required','array','min:1'],
-            'defendant_names.*' => ['required','string','max:255'],
-            'defendants' => ['nullable','string'],
+            'defendant_names' => ['required', 'array', 'min:1'],
+            'defendant_names.*' => ['required', 'string', 'max:255'],
+            'defendants' => ['nullable', 'string'],
 
-            'victim_names' => ['nullable','array'],
-            'victim_names.*' => ['nullable','string','max:255'],
-            'victim_name' => ['nullable','string'],
-            'victim_legal_rep_names' => ['nullable','array'],
-            'victim_legal_rep_names.*' => ['nullable','string','max:255'],
-            'victim_legal_rep' => ['nullable','string'],
-            'witness_names' => ['nullable','array'],
-            'witness_names.*' => ['nullable','string','max:255'],
-            'witnesses' => ['nullable','string'],
-            'expert_names' => ['nullable','array'],
-            'expert_names.*' => ['nullable','string','max:255'],
-            'experts' => ['nullable','string'],
-            'civil_plaintiff_names' => ['nullable','array'],
-            'civil_plaintiff_names.*' => ['nullable','string','max:255'],
-            'civil_plaintiff' => ['nullable','string'],
-            'civil_defendant_names' => ['nullable','array'],
-            'civil_defendant_names.*' => ['nullable','string','max:255'],
-            'civil_defendant' => ['nullable','string'],
+            'victim_names' => ['nullable', 'array'],
+            'victim_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_name' => ['nullable', 'string'],
+            'victim_legal_rep_names' => ['nullable', 'array'],
+            'victim_legal_rep_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep' => ['nullable', 'string'],
+            'witness_names' => ['nullable', 'array'],
+            'witness_names.*' => ['nullable', 'string', 'max:255'],
+            'witnesses' => ['nullable', 'string'],
+            'expert_names' => ['nullable', 'array'],
+            'expert_names.*' => ['nullable', 'string', 'max:255'],
+            'experts' => ['nullable', 'string'],
+            'civil_plaintiff_names' => ['nullable', 'array'],
+            'civil_plaintiff_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff' => ['nullable', 'string'],
+            'civil_defendant_names' => ['nullable', 'array'],
+            'civil_defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant' => ['nullable', 'string'],
 
-            'preventive_measure' => ['required','array','min:1'],
-            'preventive_measure.*' => ['required','string', Rule::in($this->allowedPreventiveMeasures())],
-            'prosecutor_ids' => ['required','array','min:1'],
-            'prosecutor_ids.*' => ['required','integer','exists:users,id'],
-            'prosecutor_id' => ['nullable','integer','exists:users,id'],
+            'preventive_measure' => ['required', 'array', 'min:1'],
+            'preventive_measure.*' => ['required', 'string', Rule::in($this->allowedPreventiveMeasures())],
+            'prosecutor_ids' => ['required', 'array', 'min:1'],
+            'prosecutor_ids.*' => ['required', 'integer', 'exists:users,id'],
+            'prosecutor_id' => ['nullable', 'integer', 'exists:users,id'],
 
-            'defendant_lawyers_text' => ['nullable','array'],
-            'defendant_lawyers_text.*' => ['nullable','string','max:255'],
-            'defendant_lawyers' => ['nullable','array'],
-            'defendant_lawyers.*' => ['nullable','string','max:255'],
+            'defendant_lawyers_text' => ['nullable', 'array'],
+            'defendant_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'defendant_lawyers' => ['nullable', 'array'],
+            'defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'victim_lawyers_text' => ['nullable','array'],
-            'victim_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_lawyers' => ['nullable','array'],
-            'victim_lawyers.*' => ['nullable','string','max:255'],
+            'victim_lawyers_text' => ['nullable', 'array'],
+            'victim_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_lawyers' => ['nullable', 'array'],
+            'victim_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'victim_legal_rep_lawyers_text' => ['nullable','array'],
-            'victim_legal_rep_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_legal_rep_lawyers' => ['nullable','array'],
-            'victim_legal_rep_lawyers.*' => ['nullable','string','max:255'],
+            'victim_legal_rep_lawyers_text' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_lawyers' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'civil_plaintiff_lawyers' => ['nullable','array'],
-            'civil_plaintiff_lawyers.*' => ['nullable','string','max:255'],
-            'civil_defendant_lawyers' => ['nullable','array'],
-            'civil_defendant_lawyers.*' => ['nullable','string','max:255'],
+            'civil_plaintiff_lawyers' => ['nullable', 'array'],
+            'civil_plaintiff_lawyers.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_lawyers' => ['nullable', 'array'],
+            'civil_defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
 
-            'matter_category_ids' => ['nullable','array'],
-            'matter_category_ids.*' => ['nullable','integer','exists:matter_categories,id'],
+            'matter_category_ids' => ['nullable', 'array'],
+            'matter_category_ids.*' => ['nullable', 'integer', 'exists:matter_categories,id'],
 
-            'note' => ['nullable','string'],
+            'note' => ['nullable', 'string'],
         ], [
             'preventive_measure.*.in' => 'Таслан сэргийлэх арга хэмжээний сонголт буруу байна. Зөвхөн жагсаалтаас сонгоно уу.',
         ]);
@@ -489,11 +520,11 @@ class HearingsController extends Controller
         $data = $this->normalizeAdminFormInputs($request, $data);
 
         $prosecutorIds = array_values(array_filter(array_map('intval', $data['prosecutor_ids'] ?? [])));
-        if (empty($prosecutorIds) && !empty($data['prosecutor_id'])) {
-            $prosecutorIds = [(int)$data['prosecutor_id']];
+        if (empty($prosecutorIds) && ! empty($data['prosecutor_id'])) {
+            $prosecutorIds = [(int) $data['prosecutor_id']];
         }
         foreach ($prosecutorIds as $pid) {
-            if (!User::whereKey($pid)->role('prosecutor')->exists()) {
+            if (! User::whereKey($pid)->role('prosecutor')->exists()) {
                 throw ValidationException::withMessages([
                     'prosecutor_ids' => 'Сонгосон хэрэглэгч прокурор эрхтэй биш байна.',
                 ]);
@@ -512,8 +543,8 @@ class HearingsController extends Controller
 
         [$start, $end] = $this->buildStartEnd(
             $data['hearing_date'],
-            (int)$data['hour'],
-            (int)$data['minute'],
+            (int) $data['hour'],
+            (int) $data['minute'],
             $duration
         );
 
@@ -537,8 +568,8 @@ class HearingsController extends Controller
                 'hearing_state' => $data['hearing_state'] ?? 'Хэвийн',
 
                 'hearing_date' => $data['hearing_date'],
-                'hour' => (int)$data['hour'],
-                'minute' => (int)$data['minute'],
+                'hour' => (int) $data['hour'],
+                'minute' => (int) $data['minute'],
 
                 'start_at' => $start,
                 'end_at' => $end,
@@ -546,7 +577,7 @@ class HearingsController extends Controller
 
                 'courtroom' => $data['courtroom'],
 
-                'preventive_measure' => !empty($data['preventive_measure'])
+                'preventive_measure' => ! empty($data['preventive_measure'])
                     ? implode(', ', array_filter($data['preventive_measure']))
                     : null,
                 'prosecutor_id' => $prosecutorIds[0] ?? null,
@@ -587,6 +618,7 @@ class HearingsController extends Controller
     {
         $hearing->judges()->detach();
         $hearing->delete();
+
         return redirect()
             ->route('admin.hearings.index')
             ->with('success', 'Хурлын зар устгагдлаа.');
@@ -598,28 +630,28 @@ class HearingsController extends Controller
     public function checkConflict(Request $request)
     {
         $data = $request->validate([
-            'hearing_date' => ['required','date'],
-            'hour' => ['required','integer','min:8','max:18'],
-            'minute' => ['required','integer', Rule::in($this->allowedMinutes())],
-            'courtroom' => ['required','string', Rule::in($this->allowedCourtrooms())],
+            'hearing_date' => ['required', 'date'],
+            'hour' => ['required', 'integer', 'min:8', 'max:18'],
+            'minute' => ['required', 'integer', Rule::in($this->allowedMinutes())],
+            'courtroom' => ['required', 'string', Rule::in($this->allowedCourtrooms())],
 
-            'presiding_judge_id' => ['required','integer','exists:users,id'],
-            'member_judge_1_id' => ['nullable','integer','exists:users,id'],
-            'member_judge_2_id' => ['nullable','integer','exists:users,id'],
-            'ignore_id' => ['nullable','integer'],
-            'prosecutor_ids' => ['nullable','array'],
-            'prosecutor_ids.*' => ['nullable','integer','exists:users,id'],
+            'presiding_judge_id' => ['required', 'integer', 'exists:users,id'],
+            'member_judge_1_id' => ['nullable', 'integer', 'exists:users,id'],
+            'member_judge_2_id' => ['nullable', 'integer', 'exists:users,id'],
+            'ignore_id' => ['nullable', 'integer'],
+            'prosecutor_ids' => ['nullable', 'array'],
+            'prosecutor_ids.*' => ['nullable', 'integer', 'exists:users,id'],
 
-            'defendant_lawyers_text' => ['nullable','array'],
-            'defendant_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_lawyers_text' => ['nullable','array'],
-            'victim_lawyers_text.*' => ['nullable','string','max:255'],
-            'victim_legal_rep_lawyers_text' => ['nullable','array'],
-            'victim_legal_rep_lawyers_text.*' => ['nullable','string','max:255'],
-            'civil_plaintiff_lawyers' => ['nullable','array'],
-            'civil_plaintiff_lawyers.*' => ['nullable','string','max:255'],
-            'civil_defendant_lawyers' => ['nullable','array'],
-            'civil_defendant_lawyers.*' => ['nullable','string','max:255'],
+            'defendant_lawyers_text' => ['nullable', 'array'],
+            'defendant_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_lawyers_text' => ['nullable', 'array'],
+            'victim_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_lawyers_text' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff_lawyers' => ['nullable', 'array'],
+            'civil_plaintiff_lawyers.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_lawyers' => ['nullable', 'array'],
+            'civil_defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         $judgeIds = array_values(array_unique(array_filter([
@@ -640,8 +672,8 @@ class HearingsController extends Controller
 
         [$start, $end] = $this->buildStartEnd(
             $data['hearing_date'],
-            (int)$data['hour'],
-            (int)$data['minute'],
+            (int) $data['hour'],
+            (int) $data['minute'],
             $duration
         );
 
@@ -656,11 +688,13 @@ class HearingsController extends Controller
         try {
             $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
             $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, $data['ignore_id'] ?? null, $prosecutorIds);
+
             return response()->json(['ok' => true]);
         } catch (ValidationException $e) {
             $errors = $e->errors();
             $field = collect(array_keys($errors))->first();
             $msg = collect($errors)->flatten()->first() ?? 'Давхцал илэрлээ.';
+
             return response()->json(['ok' => false, 'field' => $field, 'message' => $msg]);
         }
     }

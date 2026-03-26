@@ -2,55 +2,40 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
+    /**
+     * Анхны тест хэрэглэгчид. Дахин ажиллуулахад нууц үгийг дахин "password" болгоно.
+     */
     public function run(): void
     {
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@court.mn'],
-            [
-                'name' => 'System Admin',
-                'password' => Hash::make('password'),
-            ]
-        );
-        $judge = User::firstOrCreate(
-            ['email' => 'judge@court.mn'],
-            [
-                'name' => 'Judge',
-                'password' => Hash::make('password'),
-            ]
-        );
-         $secretary = User::firstOrCreate(
-            ['email' => 'secretary@court.mn'],
-            [
-                'name' => 'Secretary',
-                'password' => Hash::make('password'),
-            ]
-        );
-        $prosecutor = User::firstOrCreate(
-            ['email' => 'prosecutor@court.mn'],
-            ['name' => 'Prosecutor', 'password' => Hash::make('password')]
-        );
+        $this->call(RoleSeeder::class);
 
-        $courtClerk = User::firstOrCreate(
-            ['email' => 'clerk@court.mn'],
-            ['name' => 'Court Clerk', 'password' => Hash::make('password')]
-        );
+        $plain = 'password';
 
-        $infoDesk = User::firstOrCreate(
-            ['email' => 'info@court.mn'],
-            ['name' => 'Info Desk', 'password' => Hash::make('password')]
-        );
+        $users = [
+            ['email' => 'admin@court.mn', 'name' => 'System Admin', 'role' => 'admin'],
+            ['email' => 'judge@court.mn', 'name' => 'Judge', 'role' => 'judge'],
+            ['email' => 'secretary@court.mn', 'name' => 'Secretary', 'role' => 'secretary'],
+            ['email' => 'prosecutor@court.mn', 'name' => 'Prosecutor', 'role' => 'prosecutor'],
+            ['email' => 'clerk@court.mn', 'name' => 'Court Clerk', 'role' => 'court_clerk'],
+            ['email' => 'info@court.mn', 'name' => 'Info Desk', 'role' => 'info_desk'],
+        ];
 
-        $admin->assignRole('admin');
-        $judge->assignRole('judge');
-        $secretary->assignRole('secretary');
-        $prosecutor->assignRole('prosecutor');
-        $courtClerk->assignRole('court_clerk');
-        $infoDesk->assignRole('info_desk');
+        foreach ($users as $row) {
+            $user = User::updateOrCreate(
+                ['email' => $row['email']],
+                [
+                    'name' => $row['name'],
+                    'password' => Hash::make($plain),
+                    'is_active' => true,
+                ]
+            );
+            $user->syncRoles([$row['role']]);
+        }
     }
 }

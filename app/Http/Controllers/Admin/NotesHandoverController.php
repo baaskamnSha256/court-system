@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
-use App\Models\User;
 use App\Models\MatterCategory;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class NotesHandoverController extends Controller
@@ -17,6 +17,14 @@ class NotesHandoverController extends Controller
         if ($request->filled('hearing_date')) {
             $query->whereDate('hearing_date', $request->date('hearing_date'));
         }
+        if ($request->filled('hearing_date_from') && $request->filled('hearing_date_to')) {
+            $from = $request->date('hearing_date_from')->startOfDay();
+            $to = $request->date('hearing_date_to')->endOfDay();
+            $query->where(function ($q) use ($from, $to) {
+                $q->whereBetween('hearing_date', [$from->toDateString(), $to->toDateString()])
+                    ->orWhereBetween('start_at', [$from, $to]);
+            });
+        }
 
         if ($request->filled('q')) {
             $q = trim((string) $request->get('q'));
@@ -25,6 +33,31 @@ class NotesHandoverController extends Controller
                     ->orWhere('courtroom', 'like', "%{$q}%")
                     ->orWhere('defendants', 'like', "%{$q}%");
             });
+        }
+
+        if ($request->filled('notes_decision_status')) {
+            $status = (string) $request->input('notes_decision_status');
+            if ($status === '__pending__') {
+                $known = [
+                    'Шийдвэрлэсэн',
+                    'Хойшилсон',
+                    'Завсарласан',
+                    'Прокурорт буцаасан',
+                    'Яллагдагчийг шүүхэд шилжүүлсэн',
+                    '60 хүртэлх хоногоор хойшлуулсан',
+                ];
+                $query->where(function ($q) use ($known) {
+                    $q->whereNull('notes_decision_status')
+                        ->orWhere('notes_decision_status', '')
+                        ->orWhereNotIn('notes_decision_status', $known);
+                });
+            } else {
+                $query->where('notes_decision_status', $status);
+            }
+        }
+
+        if ($request->filled('clerk_id')) {
+            $query->where('clerk_id', (int) $request->input('clerk_id'));
         }
 
         $hearings = $query
@@ -73,13 +106,13 @@ class NotesHandoverController extends Controller
         if (auth()->user()->hasAnyRole(['admin', 'secretary'])) {
             $hearing->clerk_id = $data['clerk_id'] ?? null;
             if (($data['clerk_id'] ?? null) !== $oldClerkId) {
-                $hearing->notes_clerk_selected_at = !empty($data['clerk_id']) ? now() : null;
+                $hearing->notes_clerk_selected_at = ! empty($data['clerk_id']) ? now() : null;
             }
-            $issued = (bool)($data['notes_handover_issued'] ?? false);
+            $issued = (bool) ($data['notes_handover_issued'] ?? false);
             $hearing->notes_handover_issued = $issued;
-            if ($issued && !$oldIssued) {
+            if ($issued && ! $oldIssued) {
                 $hearing->notes_handover_issued_at = now();
-            } elseif (!$issued) {
+            } elseif (! $issued) {
                 $hearing->notes_handover_issued_at = null;
             }
         }
@@ -87,7 +120,7 @@ class NotesHandoverController extends Controller
         $hearing->notes_handover_text = $data['notes_handover_text'] ?? $hearing->notes_handover_text;
 
         // Шийдвэрлэсэн зүйл анги — сонгосон зүйл ангиудын нэрсийг нэг мөрөнд хадгална
-        if (!empty($data['notes_decided_matter_ids']) && is_array($data['notes_decided_matter_ids'])) {
+        if (! empty($data['notes_decided_matter_ids']) && is_array($data['notes_decided_matter_ids'])) {
             $ids = array_map('intval', $data['notes_decided_matter_ids']);
             $names = MatterCategory::whereIn('id', $ids)->orderBy('sort_order')->pluck('name')->all();
             $hearing->notes_decided_matter = $names ? implode(', ', $names) : null;
@@ -99,7 +132,7 @@ class NotesHandoverController extends Controller
         $hearing->notes_decision_status = $data['notes_decision_status'] ?? $hearing->notes_decision_status;
 
         // Бүртгэсэн цаг: "Тэмдэглэл гаргасан" гэж тэмдэглэсэн яг тэр мөчид
-        if ($hearing->notes_handover_issued && !$oldIssued) {
+        if ($hearing->notes_handover_issued && ! $oldIssued) {
             $hearing->notes_handover_saved_at = now();
         }
 

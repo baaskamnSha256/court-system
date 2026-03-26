@@ -17,6 +17,7 @@
 </style>
 <div class="mx-auto w-full" x-data="{
     selectedDate: '{{ $initialHearingDate }}',
+    currentHearingId: {{ (int) $hearing->id }},
     dayHearings: [],
     loading: false,
     byDateUrl: '{{ $byDateUrl }}',
@@ -24,9 +25,11 @@
         if (!this.selectedDate) { this.dayHearings = []; return; }
         this.loading = true;
         try {
-            const r = await fetch(this.byDateUrl + '?date=' + encodeURIComponent(this.selectedDate));
+            const r = await fetch(this.byDateUrl + '?date=' + encodeURIComponent(this.selectedDate) + '&ignore_id=' + this.currentHearingId);
             const data = await r.json();
-            this.dayHearings = Array.isArray(data) ? data : [];
+            this.dayHearings = Array.isArray(data)
+                ? data.filter(h => Number(h.id) !== Number(this.currentHearingId))
+                : [];
         } catch (e) { this.dayHearings = []; }
         this.loading = false;
     }
@@ -78,6 +81,16 @@
         $presiding = optional($judgesCol->first(fn($j) => (int)optional($j->pivot)->position === 1))->id;
         $m1 = optional($judgesCol->first(fn($j) => (int)optional($j->pivot)->position === 2))->id;
         $m2 = optional($judgesCol->first(fn($j) => (int)optional($j->pivot)->position === 3))->id;
+        // Backward compatibility: old backups may have judges without pivot position.
+        if (empty($presiding) && $judgesCol->isNotEmpty()) {
+            $presiding = optional($judgesCol->get(0))->id;
+        }
+        if (empty($m1) && $judgesCol->count() > 1) {
+            $m1 = optional($judgesCol->get(1))->id;
+        }
+        if (empty($m2) && $judgesCol->count() > 2) {
+            $m2 = optional($judgesCol->get(2))->id;
+        }
         if (empty($presiding) && !empty($hearing->judge_id)) {
             $presiding = (int) $hearing->judge_id;
         }
@@ -170,7 +183,9 @@
                         x-model="presiding" @change="changed()"
                         class="w-full border rounded-md px-3 py-2 {{ $errors->has('presiding_judge_id') ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
                     <option value="">-- Сонгох --</option>
-                    <template x-for="j in judges" :key="j.id"><option :value="j.id" x-text="j.name"></option></template>
+                    @foreach($judges as $j)
+                        <option value="{{ (string) $j->id }}" @selected((string)$presidingId === (string)$j->id)>{{ $j->name }}</option>
+                    @endforeach
                 </select>
             </div>
 
@@ -180,7 +195,9 @@
                         x-model="m1" @change="changed()"
                         class="w-full border rounded-md px-3 py-2 {{ $errors->has('member_judge_1_id') ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
                     <option value="">-- Сонгох --</option>
-                    <template x-for="j in availableForM1()" :key="j.id"><option :value="j.id" x-text="j.name"></option></template>
+                    @foreach($judges as $j)
+                        <option value="{{ (string) $j->id }}" @selected((string)$m1Id === (string)$j->id)>{{ $j->name }}</option>
+                    @endforeach
                 </select>
             </div>
 
@@ -190,7 +207,9 @@
                         x-model="m2" @change="changed()"
                         class="w-full border rounded-md px-3 py-2 {{ $errors->has('member_judge_2_id') ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
                     <option value="">-- Сонгох --</option>
-                    <template x-for="j in availableForM2()" :key="j.id"><option :value="j.id" x-text="j.name"></option></template>
+                    @foreach($judges as $j)
+                        <option value="{{ (string) $j->id }}" @selected((string)$m2Id === (string)$j->id)>{{ $j->name }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
