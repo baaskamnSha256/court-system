@@ -125,7 +125,8 @@ class NotesHandoverController extends Controller
             $names = MatterCategory::whereIn('id', $ids)->orderBy('sort_order')->pluck('name')->all();
             $hearing->notes_decided_matter = $names ? implode(', ', $names) : null;
         } else {
-            $hearing->notes_decided_matter = null;
+            $originalNames = $hearing->matterCategories()->orderBy('sort_order')->pluck('name')->all();
+            $hearing->notes_decided_matter = ! empty($originalNames) ? implode(', ', $originalNames) : null;
         }
         $hearing->notes_fine_units = $data['notes_fine_units'] ?? $hearing->notes_fine_units;
         $hearing->notes_damage_amount = $data['notes_damage_amount'] ?? $hearing->notes_damage_amount;
@@ -139,5 +140,72 @@ class NotesHandoverController extends Controller
         $hearing->save();
 
         return back()->with('success', 'Тэмдэглэл амжилттай хадгаллаа.');
+    }
+
+    public function reschedule(Hearing $hearing)
+    {
+        $judgeIds = $hearing->judgeSlotUserIdsOrdered();
+
+        $normalizeTextList = function (?string $value): array {
+            if (! is_string($value) || trim($value) === '') {
+                return [];
+            }
+
+            return array_values(array_filter(array_map('trim', preg_split('/[\n,]+/u', $value))));
+        };
+
+        $defendantNames = is_array($hearing->defendant_names) && ! empty($hearing->defendant_names)
+            ? array_values(array_filter($hearing->defendant_names))
+            : $normalizeTextList($hearing->defendants);
+        $preventiveMeasure = is_array($hearing->preventive_measure)
+            ? $hearing->preventive_measure
+            : $normalizeTextList(is_string($hearing->preventive_measure) ? $hearing->preventive_measure : null);
+        $judgeNamesText = trim((string) ($hearing->judge_names_text ?? ''));
+        if ($judgeNamesText === '') {
+            $judgeNamesText = $hearing->judges()->orderBy('hearing_judges.position')->pluck('users.name')->implode(', ');
+        }
+
+        $prefill = [
+            'case_no' => $hearing->case_no,
+            'title' => $hearing->title,
+            'hearing_state' => $hearing->hearing_state,
+            'hearing_type' => $hearing->hearing_type,
+            'hearing_date' => optional($hearing->hearing_date)->format('Y-m-d'),
+            'reschedule_source_hearing_id' => (string) $hearing->id,
+            'hour' => $hearing->hour,
+            'minute' => $hearing->minute,
+            'courtroom' => $hearing->courtroom,
+            'presiding_judge_id' => $judgeIds[0] ?? '',
+            'member_judge_1_id' => $judgeIds[1] ?? '',
+            'member_judge_2_id' => $judgeIds[2] ?? '',
+            'judge_names_text' => $judgeNamesText,
+            'defendant_names' => $defendantNames,
+            'prosecutor_ids' => $hearing->prosecutor_ids_list,
+            'matter_category_ids' => $hearing->matter_category_ids ?? [],
+            'preventive_measure' => $preventiveMeasure,
+            'defendant_lawyers_text' => $hearing->defendant_lawyers_text ?? [],
+            'victim_lawyers_text' => $hearing->victim_lawyers_text ?? [],
+            'victim_legal_rep_lawyers_text' => $hearing->victim_legal_rep_lawyers_text ?? [],
+            'civil_plaintiff_lawyers' => $hearing->civil_plaintiff_lawyers ?? [],
+            'civil_defendant_lawyers' => $hearing->civil_defendant_lawyers ?? [],
+            'victim_names' => $normalizeTextList($hearing->victim_name),
+            'victim_legal_rep_names' => $normalizeTextList($hearing->victim_legal_rep),
+            'witness_names' => $normalizeTextList($hearing->witnesses),
+            'expert_names' => $normalizeTextList($hearing->experts),
+            'civil_plaintiff_names' => $normalizeTextList($hearing->civil_plaintiff),
+            'civil_defendant_names' => $normalizeTextList($hearing->civil_defendant),
+            'note' => $hearing->note,
+        ];
+
+        return redirect()
+            ->route('admin.hearings.create', [
+                'presiding_judge_id' => $prefill['presiding_judge_id'] ?? '',
+                'member_judge_1_id' => $prefill['member_judge_1_id'] ?? '',
+                'member_judge_2_id' => $prefill['member_judge_2_id'] ?? '',
+                'reschedule_source_hearing_id' => $prefill['reschedule_source_hearing_id'] ?? '',
+                'judge_names_text' => $prefill['judge_names_text'] ?? '',
+            ])
+            ->with('reschedule_prefill', $prefill)
+            ->withInput($prefill);
     }
 }

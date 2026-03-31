@@ -84,7 +84,8 @@ class NotesHandoverController extends Controller
             $names = MatterCategory::whereIn('id', $ids)->orderBy('sort_order')->pluck('name')->all();
             $hearing->notes_decided_matter = $names ? implode(', ', $names) : null;
         } else {
-            $hearing->notes_decided_matter = null;
+            $originalNames = $hearing->matterCategories()->orderBy('sort_order')->pluck('name')->all();
+            $hearing->notes_decided_matter = ! empty($originalNames) ? implode(', ', $originalNames) : null;
         }
 
         $hearing->notes_fine_units = $data['notes_fine_units'] ?? $hearing->notes_fine_units;

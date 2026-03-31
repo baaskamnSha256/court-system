@@ -69,13 +69,39 @@ class HearingsController extends Controller
 
     public function create()
     {
-        $judges = User::role('judge')
-            ->where(function ($query) {
-                $query->where('is_active', true)
-                    ->orWhereNull('is_active');
-            })
-            ->orderBy('name')
-            ->get();
+        $reschedulePrefill = (array) session('reschedule_prefill', []);
+        $prefillPresidingJudgeId = (string) request()->query('presiding_judge_id', $reschedulePrefill['presiding_judge_id'] ?? '');
+        $prefillMemberJudge1Id = (string) request()->query('member_judge_1_id', $reschedulePrefill['member_judge_1_id'] ?? '');
+        $prefillMemberJudge2Id = (string) request()->query('member_judge_2_id', $reschedulePrefill['member_judge_2_id'] ?? '');
+        $prefillSourceHearingId = (string) request()->query('reschedule_source_hearing_id', $reschedulePrefill['reschedule_source_hearing_id'] ?? '');
+        $prefillJudgeNamesText = (string) request()->query('judge_names_text', $reschedulePrefill['judge_names_text'] ?? '');
+        $resolvedPresidingJudgeId = request()->has('presiding_judge_id') ? $prefillPresidingJudgeId : (string) old('presiding_judge_id', $prefillPresidingJudgeId);
+        $resolvedMemberJudge1Id = request()->has('member_judge_1_id') ? $prefillMemberJudge1Id : (string) old('member_judge_1_id', $prefillMemberJudge1Id);
+        $resolvedMemberJudge2Id = request()->has('member_judge_2_id') ? $prefillMemberJudge2Id : (string) old('member_judge_2_id', $prefillMemberJudge2Id);
+
+        if ($prefillSourceHearingId !== '' && ctype_digit($prefillSourceHearingId)) {
+            $sourceHearing = Hearing::query()->find((int) $prefillSourceHearingId);
+            if ($sourceHearing) {
+                $sourceJudgeIds = $sourceHearing->judgeSlotUserIdsOrdered();
+                $resolvedPresidingJudgeId = (string) ($sourceJudgeIds[0] ?? $resolvedPresidingJudgeId);
+                $resolvedMemberJudge1Id = (string) ($sourceJudgeIds[1] ?? $resolvedMemberJudge1Id);
+                $resolvedMemberJudge2Id = (string) ($sourceJudgeIds[2] ?? $resolvedMemberJudge2Id);
+            }
+        }
+
+        $selectedJudgeIds = collect([
+            $resolvedPresidingJudgeId,
+            $resolvedMemberJudge1Id,
+            $resolvedMemberJudge2Id,
+        ])
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        if ($selectedJudgeIds->isEmpty()) {
+            $selectedJudgeIds = $this->inferJudgeIdsFromText((string) old('judge_names_text', $prefillJudgeNamesText));
+        }
+        $judges = $this->judgesForHearingForm($selectedJudgeIds);
         $prosecutors = User::role('prosecutor')->where('is_active', true)->orderBy('name')->get();
         $lawyers = User::role('lawyer')->where('is_active', true)->orderBy('name')->get();
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
@@ -87,6 +113,13 @@ class HearingsController extends Controller
             'checkConflictUrl' => route('admin.hearings.checkConflict'),
             'backUrl' => route('admin.hearings.index'),
             'defendantSearchUrl' => route('admin.defendant-search'),
+            'prefillPresidingJudgeId' => $prefillPresidingJudgeId,
+            'prefillMemberJudge1Id' => $prefillMemberJudge1Id,
+            'prefillMemberJudge2Id' => $prefillMemberJudge2Id,
+            'prefillSourceHearingId' => $prefillSourceHearingId,
+            'resolvedPresidingJudgeId' => $resolvedPresidingJudgeId,
+            'resolvedMemberJudge1Id' => $resolvedMemberJudge1Id,
+            'resolvedMemberJudge2Id' => $resolvedMemberJudge2Id,
         ];
 
         return view('hearings.create', array_merge(compact('judges', 'prosecutors', 'lawyers', 'matterCategories'), $vars));

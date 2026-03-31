@@ -43,3 +43,26 @@ it('includes pivot-assigned judges on admin edit even when they no longer have t
         ->assertOk()
         ->assertSee('PivotJudge NoRole', false);
 });
+
+it('shows old selected judges on admin create page', function () {
+    ensureRole('admin');
+    ensureRole('judge');
+    ensureRole('prosecutor');
+    ensureRole('lawyer');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $judge = User::factory()->create(['name' => 'OldInput Selected Judge', 'is_active' => false]);
+    $judge->assignRole('judge');
+
+    $this->actingAs($admin)
+        ->withSession([
+            '_old_input' => [
+                'presiding_judge_id' => (string) $judge->id,
+            ],
+        ])
+        ->get(route('admin.hearings.create'))
+        ->assertOk()
+        ->assertSee('OldInput Selected Judge', false);
+});

@@ -59,7 +59,7 @@
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Өмгөөлөгчийн нэр</th>
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Хохирогч, гэрч, шинжээч, ххёт, иргэний нэхэмжлэгч, хариуцагч</th>
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Шүүх хуралдаан хойшилсон тойм</th>
-                        <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Шийдвэрлэсэн зүйл анги</th>
+                        <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm min-w-[280px]">Шийдвэрлэсэн зүйл анги</th>
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Торгох нэгж</th>
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Хохирлын дүн</th>
                         <th class="px-4 py-3 text-center font-semibold text-slate-700 whitespace-normal break-words text-sm">Шүүх хуралдааны шийдвэр</th>
@@ -112,12 +112,43 @@
                                         ->all();
                                 }
                             }
+                            $originMatterNames = collect($matterCategories)->map(fn ($name) => trim((string) $name))->filter()->unique()->values();
+                            $decidedMatterNames = collect(preg_split('/[,;\n]+/u', (string) ($h->notes_decided_matter ?? '')))
+                                ->map(fn ($name) => trim((string) $name))
+                                ->filter()
+                                ->unique()
+                                ->values();
+                            $hasDecidedMatterChange = $decidedMatterNames->isNotEmpty()
+                                && ($originMatterNames->sort()->values()->all() !== $decidedMatterNames->sort()->values()->all());
+
+                            $decisionStatus = (string) ($h->notes_decision_status ?? '');
+                            $decisionCellClass = match ($decisionStatus) {
+                                'Шийдвэрлэсэн' => 'bg-emerald-50/70',
+                                'Хойшилсон' => 'bg-amber-50/70',
+                                'Завсарласан' => 'bg-sky-50/70',
+                                'Прокурорт буцаасан' => 'bg-rose-50/70',
+                                'Яллагдагчийг шүүхэд шилжүүлсэн' => 'bg-indigo-50/70',
+                                '60 хүртэлх хоногоор хойшлуулсан' => 'bg-violet-50/70',
+                                default => 'bg-slate-50/70',
+                            };
+
+                            $decisionBadgeClass = match ($decisionStatus) {
+                                'Шийдвэрлэсэн' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                                'Хойшилсон' => 'bg-amber-100 text-amber-800 border-amber-200',
+                                'Завсарласан' => 'bg-sky-100 text-sky-800 border-sky-200',
+                                'Прокурорт буцаасан' => 'bg-rose-100 text-rose-800 border-rose-200',
+                                'Яллагдагчийг шүүхэд шилжүүлсэн' => 'bg-indigo-100 text-indigo-800 border-indigo-200',
+                                '60 хүртэлх хоногоор хойшлуулсан' => 'bg-violet-100 text-violet-800 border-violet-200',
+                                default => 'bg-slate-100 text-slate-700 border-slate-200',
+                            };
+
+                            $issuedCellClass = $h->notes_handover_issued ? 'bg-emerald-50/60' : 'bg-amber-50/60';
                         @endphp
                         @php
                             $formId = 'notes-form-' . $h->id;
                         @endphp
                         <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors"
-                            x-data="{ edit: false, cancel() { this.edit = false; document.getElementById('{{ $formId }}')?.reset(); } }">
+                            x-data="{ openModal: false, decisionStatus: @js(old('notes_decision_status', $h->notes_decision_status ?? '')), cancel() { this.openModal = false; document.getElementById('{{ $formId }}')?.reset(); } }">
                             <td class="px-3 py-2.5 text-slate-700 whitespace-nowrap align-top text-center">
                                 {{ ($hearings->currentPage() - 1) * $hearings->perPage() + $loop->iteration }}
                             </td>
@@ -158,17 +189,27 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
-                                <textarea name="notes_handover_text" rows="3" :disabled="!edit" form="{{ $formId }}"
-                                          :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
+                                <textarea name="notes_handover_text" rows="3" disabled form="{{ $formId }}"
                                           class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed">{{ old('notes_handover_text', $h->notes_handover_text) }}</textarea>
                             </td>
-                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
-                                <div x-show="!edit" class="text-xs text-slate-700 whitespace-normal break-words">
+                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words min-w-[300px]">
+                                <div class="text-xs text-slate-700 whitespace-normal break-words">
                                     {{ $h->notes_decided_matter ?: '—' }}
+                                </div>
+                                <div class="mt-1">
+                                    @if($h->notes_decided_matter)
+                                        <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium {{ $hasDecidedMatterChange ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200' }}">
+                                            {{ $hasDecidedMatterChange ? 'Анхны зүйл ангиас өөрчлөгдсөн' : 'Анхны зүйл ангитай ижил' }}
+                                        </span>
+                                    @endif
                                 </div>
                                 @php
                                     $chipOptions = ($allMatterCategories ?? collect())
                                         ->map(fn($c) => ['id' => (string)$c->id, 'name' => $c->name])
+                                        ->values();
+                                    $originChipSelected = ($allMatterCategories ?? collect())
+                                        ->whereIn('name', $matterCategories)
+                                        ->map(fn($c) => ['id' => (string) $c->id, 'name' => $c->name])
                                         ->values();
                                     $chipSelected = collect(old('notes_decided_matter_ids', $decidedMatterSelectedIds))
                                         ->map(function ($id) use ($allMatterCategories) {
@@ -180,12 +221,35 @@
                                         ->values();
                                 @endphp
 
-                                <div 
-                                
+                                <div
+                                     x-show="false"
+                                     x-cloak
+                                     x-data="(() => {
+                                         const state = chipSelect({
+                                             options: @js($chipOptions),
+                                             selected: @js($chipSelected),
+                                             single: false,
+                                             placeholder: 'Зүйл анги хайх...',
+                                             nameId: 'notes_decided_matter_ids[]'
+                                         });
+                                         state.originSelected = @js($originChipSelected);
+                                         return state;
+                                     })()"
                                      x-init="init()"
                                      class="mt-0.5">
+                                    <div class="mb-1 flex items-center justify-between gap-2">
+                                        <div class="text-[11px] text-slate-500">
+                                            Анхны зүйл анги: {{ count($matterCategories) ? implode(', ', $matterCategories) : '—' }}
+                                        </div>
+                                        @if(count($matterCategories))
+                                            <button type="button"
+                                                    @click="selected = [...originSelected]; query = ''; open = false; refreshFiltered()"
+                                                    class="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50">
+                                                Анхныхыг ашиглах
+                                            </button>
+                                        @endif
+                                    </div>
                                     <div class="rounded-lg border border-slate-300 bg-white focus-within:ring-1 focus-within:ring-sky-300 focus-within:border-sky-500"
-                                         :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
                                          @click="openNow(); $refs.input?.focus()"
                                          @click.outside="open = false"
                                     >
@@ -197,9 +261,10 @@
                                                 </span>
                                             </template>
                                             <input type="text" x-ref="input" x-model="query" :id="searchId()" :name="searchName()" autocomplete="off"
+                                                   disabled
                                                    @focus="openNow()" @click="openNow()" @input="refreshFiltered()" @keydown.escape="open = false"
                                                    placeholder="Зүйл анги хайх..."
-                                                   class="flex-1 min-w-[8rem] border-0 py-1 text-xs focus:ring-0 focus:outline-none">
+                                                   class="flex-1 min-w-[8rem] border-0 py-1 text-xs focus:ring-0 focus:outline-none disabled:bg-transparent disabled:text-slate-400 disabled:cursor-not-allowed">
                                         </div>
                                         <div x-show="open" x-cloak class="border-t border-slate-200 max-h-48 overflow-auto">
                                             <template x-for="opt in filteredOptions" :key="opt.id">
@@ -221,18 +286,16 @@
                             <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
                                 <input type="text" name="notes_fine_units"
                                        value="{{ old('notes_fine_units', $h->notes_fine_units) }}"
-                                       :disabled="!edit" form="{{ $formId }}"
-                                       :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
+                                       disabled form="{{ $formId }}"
                                        class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed">
                             </td>
                             <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
                                 <input type="text" name="notes_damage_amount"
                                        value="{{ old('notes_damage_amount', $h->notes_damage_amount) }}"
-                                       :disabled="!edit" form="{{ $formId }}"
-                                       :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
+                                       disabled form="{{ $formId }}"
                                        class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed">
                             </td>
-                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
+                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words {{ $decisionCellClass }}">
                                 @php
                                     $decisionOptions = [
                                         '' => '— Сонгох —',
@@ -244,9 +307,13 @@
                                         '60 хүртэлх хоногоор хойшлуулсан' => '60 хүртэлх хоногоор хойшлуулсан',
                                     ];
                                 @endphp
+                                <div class="mb-1">
+                                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $decisionBadgeClass }}">
+                                        {{ $h->notes_decision_status ?: 'Хүлээгдэж буй' }}
+                                    </span>
+                                </div>
                                 <select name="notes_decision_status"
-                                        :disabled="!edit" form="{{ $formId }}" required
-                                        :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
+                                        disabled form="{{ $formId }}" required
                                         class="w-full min-w-[140px] rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed">
                                     @foreach($decisionOptions as $val => $label)
                                         <option value="{{ $val }}" @selected(old('notes_decision_status', $h->notes_decision_status) === $val)>{{ $label }}</option>
@@ -259,9 +326,8 @@
                                         {{ $currentClerkName ?? '—' }}
                                     </div>
                                 @else
-                                    <select name="clerk_id" :disabled="!edit" required
+                                    <select name="clerk_id" disabled required
                                             form="{{ $formId }}"
-                                            :class="edit ? 'border-sky-500 ring-1 ring-sky-300' : ''"
                                             class="w-full min-w-[140px] rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed">
                                         <option value="">— Сонгоогүй —</option>
                                         @foreach($clerks as $clerk)
@@ -273,12 +339,12 @@
                             <td class="px-3 py-2.5 text-slate-700 align-top whitespace-nowrap text-center text-xs">
                                 {{ optional($h->notes_clerk_selected_at)->format('Y-m-d H:i') ?? '—' }}
                             </td>
-                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-nowrap text-center">
+                            <td class="px-3 py-2.5 text-slate-700 align-top whitespace-nowrap text-center {{ $issuedCellClass }}">
                                 <div class="flex flex-col items-center gap-1 text-xs">
                                     <label class="inline-flex items-center gap-1 text-slate-700">
                                         @if(!$isClerkUser)
                                             <input type="checkbox" name="notes_handover_issued" value="1"
-                                                   :disabled="!edit"
+                                                   disabled
                                                    form="{{ $formId }}"
                                                    class="rounded border-slate-300 disabled:cursor-not-allowed"
                                                    @checked(old('notes_handover_issued', $h->notes_handover_issued))>
@@ -305,18 +371,115 @@
                             </td>
                             <td class="px-3 py-2.5 text-slate-700 align-top whitespace-nowrap text-center">
                                 <div class="inline-flex items-center gap-2">
-                                    <button type="button" x-show="!edit" @click="edit = true"
+                                    <button type="button" @click="openModal = true"
                                             class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                         Засварлах
                                     </button>
-                                    <button type="submit" x-show="edit" form="{{ $formId }}"
-                                            class="inline-flex items-center rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700">
-                                        Хадгалах
-                                    </button>
-                                    <button type="button" x-show="edit" @click="cancel()"
-                                            class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                        Цуцлах
-                                    </button>
+                                </div>
+                                <div x-show="openModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+                                    <div @click.outside="cancel()" class="w-full max-w-4xl rounded-xl bg-white p-4 shadow-xl">
+                                        <div class="mb-3 flex items-center justify-between">
+                                            <h3 class="text-sm font-semibold text-slate-800">Тэмдэглэл засварлах</h3>
+                                            <button type="button" @click="cancel()" class="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">Хаах</button>
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div class="md:col-span-2">
+                                                <label class="mb-1 block text-xs font-medium text-slate-600">Шүүх хуралдаан хойшилсон тойм</label>
+                                                <textarea name="notes_handover_text" rows="3" form="{{ $formId }}" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">{{ old('notes_handover_text', $h->notes_handover_text) }}</textarea>
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="mb-1 block text-xs font-medium text-slate-600">Шийдвэрлэсэн зүйл анги</label>
+                                                <div
+                                                     x-data="(() => {
+                                                         const state = chipSelect({
+                                                             options: @js($chipOptions),
+                                                             selected: @js($chipSelected),
+                                                             single: false,
+                                                             placeholder: 'Зүйл анги хайх...',
+                                                             nameId: 'notes_decided_matter_ids[]'
+                                                         });
+                                                         state.originSelected = @js($originChipSelected);
+                                                         return state;
+                                                     })()"
+                                                     x-init="init()"
+                                                     class="mt-0.5">
+                                                    <div class="mb-1 flex items-center justify-between gap-2">
+                                                        <div class="text-[11px] text-slate-500">Анхны зүйл анги: {{ count($matterCategories) ? implode(', ', $matterCategories) : '—' }}</div>
+                                                        @if(count($matterCategories))
+                                                            <button type="button" @click="selected = [...originSelected]; query = ''; open = false; refreshFiltered()" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Анхныхыг ашиглах</button>
+                                                        @endif
+                                                    </div>
+                                                    <div class="rounded-lg border border-slate-300 bg-white focus-within:ring-1 focus-within:ring-sky-300 focus-within:border-sky-500" @click="openNow(); $refs.input?.focus()" @click.outside="open = false">
+                                                        <div class="flex flex-wrap items-center gap-1.5 px-2 py-1.5 min-h-[2.25rem]">
+                                                            <template x-for="s in selected" :key="'m-'+s.id">
+                                                                <span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 rounded px-2 py-0.5 text-xs">
+                                                                    <span x-text="s.name"></span>
+                                                                    <button type="button" @click.stop="remove(s)" class="text-slate-500 hover:text-red-600 leading-none">&times;</button>
+                                                                </span>
+                                                            </template>
+                                                            <input type="text" x-ref="input" x-model="query" :id="searchId()" :name="searchName()" autocomplete="off" @focus="openNow()" @click="openNow()" @input="refreshFiltered()" @keydown.escape="open = false" placeholder="Зүйл анги хайх..." class="flex-1 min-w-[8rem] border-0 py-1 text-xs focus:ring-0 focus:outline-none">
+                                                        </div>
+                                                        <div x-show="open" x-cloak class="border-t border-slate-200 max-h-48 overflow-auto">
+                                                            <template x-for="opt in filteredOptions" :key="opt.id">
+                                                                <div @click="toggle(opt)" class="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-slate-50 text-xs border-b border-slate-50 last:border-0">
+                                                                    <span x-text="opt.name"></span>
+                                                                    <span x-show="isSelected(opt)" class="text-slate-800 font-bold">✓</span>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                    <template x-for="s in selected" :key="'mh-'+s.id">
+                                                        <input type="hidden" name="notes_decided_matter_ids[]" :value="s.id" form="{{ $formId }}">
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="mb-1 block text-xs font-medium text-slate-600">Торгох нэгж</label>
+                                                <input type="text" name="notes_fine_units" value="{{ old('notes_fine_units', $h->notes_fine_units) }}" form="{{ $formId }}" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">
+                                            </div>
+                                            <div>
+                                                <label class="mb-1 block text-xs font-medium text-slate-600">Хохирлын дүн</label>
+                                                <input type="text" name="notes_damage_amount" value="{{ old('notes_damage_amount', $h->notes_damage_amount) }}" form="{{ $formId }}" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">
+                                            </div>
+                                            <div>
+                                                <label class="mb-1 block text-xs font-medium text-slate-600">Шүүх хуралдааны шийдвэр</label>
+                                                <select name="notes_decision_status" x-model="decisionStatus" form="{{ $formId }}" required class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">
+                                                    @foreach($decisionOptions as $val => $label)
+                                                        <option value="{{ $val }}" @selected(old('notes_decision_status', $h->notes_decision_status) === $val)>{{ $label }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            @if(!$isClerkUser)
+                                                <div>
+                                                    <label class="mb-1 block text-xs font-medium text-slate-600">ШХНБ дарга</label>
+                                                    <select name="clerk_id" form="{{ $formId }}" required class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">
+                                                        <option value="">— Сонгоогүй —</option>
+                                                        @foreach($clerks as $clerk)
+                                                            <option value="{{ $clerk->id }}" @selected(old('clerk_id', $h->clerk_id) == $clerk->id)>{{ $clerk->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div class="flex items-end">
+                                                    <label class="inline-flex items-center gap-2 text-xs text-slate-700">
+                                                        <input type="checkbox" name="notes_handover_issued" value="1" form="{{ $formId }}" class="rounded border-slate-300" @checked(old('notes_handover_issued', $h->notes_handover_issued))>
+                                                        Тэмдэглэл гаргасан
+                                                    </label>
+                                                </div>
+                                            @endif
+                                        </div>
+                                        <div class="mt-4 flex items-center justify-end gap-2">
+                                            @if(\Illuminate\Support\Facades\Route::has($notesPrefix . '.notes.reschedule'))
+                                                <form method="POST" action="{{ route($notesPrefix . '.notes.reschedule', $h) }}" x-show="decisionStatus === 'Хойшилсон'" x-cloak>
+                                                    @csrf
+                                                    <button type="submit" class="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100">
+                                                        Хурлыг дахин зарлах
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            <button type="button" @click="cancel()" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Цуцлах</button>
+                                            <button type="submit" form="{{ $formId }}" @click="openModal = false" class="inline-flex items-center rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700">Хадгалах</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <form id="{{ $formId }}" method="POST" action="{{ route($notesPrefix . '.notes.update', $h) }}" class="hidden">
                                     @csrf

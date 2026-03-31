@@ -16,6 +16,7 @@
 </style>
 <div class="mx-auto w-full px-2 sm:px-0" x-data="{
     selectedDate: '{{ $initialHearingDate }}',
+    sourceHearingId: '{{ old('reschedule_source_hearing_id', $prefillSourceHearingId ?? '') }}',
     dayHearings: [],
     loading: false,
     byDateUrl: '{{ $byDateUrl }}',
@@ -23,7 +24,11 @@
         if (!this.selectedDate) { this.dayHearings = []; return; }
         this.loading = true;
         try {
-            const r = await fetch(this.byDateUrl + '?date=' + encodeURIComponent(this.selectedDate));
+            const params = new URLSearchParams({ date: this.selectedDate });
+            if (this.sourceHearingId) {
+                params.set('ignore_id', this.sourceHearingId);
+            }
+            const r = await fetch(this.byDateUrl + '?' + params.toString());
             const data = await r.json();
             this.dayHearings = Array.isArray(data) ? data : [];
         } catch (e) { this.dayHearings = []; }
@@ -168,9 +173,9 @@
         <div
   x-data="judgePanelExclude({
     judges: @js($judges->map(fn($j)=>['id'=>(string)$j->id,'name'=>$j->name])->values()),
-    presiding: '{{ old('presiding_judge_id', '') }}',
-    m1: '{{ old('member_judge_1_id', '') }}',
-    m2: '{{ old('member_judge_2_id', '') }}',
+    presiding: '{{ $resolvedPresidingJudgeId ?? old('presiding_judge_id', $prefillPresidingJudgeId ?? '') }}',
+    m1: '{{ $resolvedMemberJudge1Id ?? old('member_judge_1_id', $prefillMemberJudge1Id ?? '') }}',
+    m2: '{{ $resolvedMemberJudge2Id ?? old('member_judge_2_id', $prefillMemberJudge2Id ?? '') }}',
   })"
   x-init="init()"
   class="space-y-4"
@@ -185,7 +190,7 @@
             class="w-full border rounded-md px-3 py-2">
       <option value="">-- Сонгох --</option>
       <template x-for="j in judges" :key="j.id">
-        <option :value="j.id" x-text="j.name"></option>
+        <option :value="j.id" :selected="String(j.id) === String(presiding)" x-text="j.name"></option>
       </template>
     </select>
   </div>
@@ -201,7 +206,7 @@
 
       {{-- ✅ энд judges биш availableForM1() дээр явна --}}
       <template x-for="j in availableForM1()" :key="j.id">
-        <option :value="j.id" x-text="j.name"></option>
+        <option :value="j.id" :selected="String(j.id) === String(m1)" x-text="j.name"></option>
       </template>
     </select>
   </div>
@@ -217,7 +222,7 @@
 
       {{-- ✅ энд judges биш availableForM2() дээр явна --}}
       <template x-for="j in availableForM2()" :key="j.id">
-        <option :value="j.id" x-text="j.name"></option>
+        <option :value="j.id" :selected="String(j.id) === String(m2)" x-text="j.name"></option>
       </template>
     </select>
   </div>
@@ -233,6 +238,14 @@ function judgePanelExclude({ judges, presiding, m1, m2 }) {
     m2: m2 ? String(m2) : '',
 
     init() {
+      this.$nextTick(() => {
+        const presidingEl = document.getElementById('presiding_judge_id');
+        if (presidingEl && this.presiding) presidingEl.value = String(this.presiding);
+        const m1El = document.getElementById('member_judge_1_id');
+        if (m1El && this.m1) m1El.value = String(this.m1);
+        const m2El = document.getElementById('member_judge_2_id');
+        if (m2El && this.m2) m2El.value = String(this.m2);
+      });
       this.changed();
     },
 
@@ -1128,7 +1141,7 @@ function chipSelect(config) {
                 presiding: document.querySelector('[name="presiding_judge_id"]')?.value || '',
                 m1: document.querySelector('[name="member_judge_1_id"]')?.value || '',
                 m2: document.querySelector('[name="member_judge_2_id"]')?.value || '',
-                duration: 30,
+                duration: 10,
                 isPanel: false,
                 startText: '-',
                 endText: '-',
@@ -1175,7 +1188,7 @@ function chipSelect(config) {
                     const judgeIds = [this.presiding, this.m1, this.m2].filter(Boolean);
                     const uniq = [...new Set(judgeIds)];
                     this.isPanel = uniq.length >= 3;
-                    this.duration = this.isPanel ? 60 : 30;
+                    this.duration = this.isPanel ? 30 : 10;
 
                     if(!this.date || this.hour === '' || this.minute === ''){
                         this.startText = '-'; this.endText = '-';

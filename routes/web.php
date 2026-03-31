@@ -92,6 +92,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/notes-handover', [NotesHandoverController::class, 'index'])->name('notes.index');
         Route::patch('/notes-handover/{hearing}', [NotesHandoverController::class, 'update'])->name('notes.update');
+        Route::post('/notes-handover/{hearing}/reschedule', [NotesHandoverController::class, 'reschedule'])->name('notes.reschedule');
         Route::get('/text-mask', [TextMaskController::class, 'index'])->name('textmask.index');
         Route::post('/text-mask', [TextMaskController::class, 'process'])->name('textmask.process');
         Route::get('/text-mask/download', [TextMaskController::class, 'downloadPreview'])->name('textmask.download');
@@ -111,6 +112,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('hearings/check-conflict', [SecretaryHearings::class, 'checkConflict'])->name('hearings.checkConflict');
         Route::get('/notes-handover', [\App\Http\Controllers\Secretary\NotesHandoverController::class, 'index'])->name('notes.index');
         Route::patch('/notes-handover/{hearing}', [\App\Http\Controllers\Secretary\NotesHandoverController::class, 'update'])->name('notes.update');
+        Route::post('/notes-handover/{hearing}/reschedule', [\App\Http\Controllers\Secretary\NotesHandoverController::class, 'reschedule'])->name('notes.reschedule');
         Route::get('/text-mask', [SecretaryTextMaskController::class, 'index'])->name('textmask.index');
         Route::post('/text-mask', [SecretaryTextMaskController::class, 'process'])->name('textmask.process');
         Route::get('/text-mask/download', [SecretaryTextMaskController::class, 'downloadPreview'])->name('textmask.download');

@@ -79,7 +79,8 @@ trait ManagesHearingLogic
 
     protected function computeDurationMinutes(array $judgeIds): int
     {
-        return count($judgeIds) >= 3 ? 60 : 30;
+        // Бүрэлдэхүүнтэй (3 шүүгч) хурал 30 минут, бусад хурал 10 минутын интервалаар тооцно.
+        return count($judgeIds) >= 3 ? 30 : 10;
     }
 
     protected function buildStartEnd(string $date, int $hour, int $minute, int $durationMinutes): array
@@ -239,6 +240,46 @@ trait ManagesHearingLogic
             ->get();
 
         return $judges->merge($extra)->unique('id')->sortBy('name')->values();
+    }
+
+    /**
+     * @return Collection<int, int>
+     */
+    protected function inferJudgeIdsFromText(?string $judgeNamesText): Collection
+    {
+        if (! is_string($judgeNamesText) || trim($judgeNamesText) === '') {
+            return collect();
+        }
+
+        $names = collect(preg_split('/[\n,]+/u', $judgeNamesText))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->values();
+
+        if ($names->isEmpty()) {
+            return collect();
+        }
+
+        $resolved = collect();
+        foreach ($names as $name) {
+            $exactId = User::query()->where('name', $name)->value('id');
+            if ($exactId) {
+                $resolved->push((int) $exactId);
+
+                continue;
+            }
+
+            $escaped = addcslashes($name, '%_');
+            $likeId = User::query()
+                ->where('name', 'like', "%{$escaped}%")
+                ->orderBy('id')
+                ->value('id');
+            if ($likeId) {
+                $resolved->push((int) $likeId);
+            }
+        }
+
+        return $resolved->unique()->values();
     }
 
     protected function syncJudgesPivot(Hearing $hearing, Request $request): void
