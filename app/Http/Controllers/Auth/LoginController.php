@@ -62,12 +62,10 @@ class LoginController extends Controller
             || ! Hash::check($validated['password'], $storedHash)) {
             return back()->withErrors([
                 'email' => 'Нэвтрэх мэдээлэл буруу байна.',
-            ])->withInput($request->only('email'));
+            ])->withInput($request->only('email', 'remember'));
         }
 
         Auth::login($user, $request->boolean('remember'));
-
-        $request->session()->regenerate();
 
         /** @var User|null $user */
         $user = Auth::user();
@@ -79,7 +77,7 @@ class LoginController extends Controller
 
             return back()->withErrors([
                 'email' => 'Таны эрх идэвхгүй байна. Системийн админтай холбогдоно уу.',
-            ])->withInput($request->only('email'));
+            ])->withInput($request->only('email', 'remember'));
         }
 
         $user?->loadMissing('roles');
@@ -93,7 +91,7 @@ class LoginController extends Controller
 
             return back()->withErrors([
                 'email' => 'Таны дансад системийн эрх тохируулаагүй байна. Системийн админтай холбогдоно уу.',
-            ])->withInput($request->only('email'));
+            ])->withInput($request->only('email', 'remember'));
         }
 
         [$redirectRoute, $todayHearingsCount] = $resolved;
@@ -119,7 +117,7 @@ class LoginController extends Controller
             return null;
         }
 
-        $priority = ['admin', 'judge', 'secretary', 'court_clerk', 'prosecutor', 'info_desk', 'lawyer'];
+        $priority = ['admin', 'head_of_department', 'judge', 'secretary', 'court_clerk', 'prosecutor', 'info_desk', 'lawyer'];
 
         foreach ($priority as $role) {
             if (! $this->userHasRoleName($user, $role)) {
@@ -128,6 +126,7 @@ class LoginController extends Controller
 
             return match ($role) {
                 'admin' => ['admin.dashboard', 0],
+                'head_of_department' => ['admin.dashboard', 0],
                 'secretary' => ['secretary.dashboard', 0],
                 'court_clerk' => ['court_clerk.dashboard', 0],
                 'info_desk' => ['info_desk.dashboard', 0],

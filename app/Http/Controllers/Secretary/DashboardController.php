@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Support\HearingDashboardStatistics;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -11,26 +12,58 @@ class DashboardController extends Controller
     public function index()
     {
         $dateParam = request('date');
-        $today = $dateParam && \Carbon\Carbon::hasFormat($dateParam, 'Y-m-d')
-            ? \Carbon\Carbon::parse($dateParam)->startOfDay()
-            : \Carbon\Carbon::today();
+        $today = $dateParam && Carbon::hasFormat($dateParam, 'Y-m-d')
+            ? Carbon::parse($dateParam)->startOfDay()
+            : Carbon::today();
 
         $monthStart = $today->copy()->startOfMonth();
         $monthEnd = $today->copy()->endOfMonth();
+        $yearStart = $today->copy()->startOfYear();
+        $yearEnd = $today->copy()->endOfDay();
+
+        $monthBaseQuery = Hearing::query()
+            ->where('secretary_id', auth()->id())
+            ->where(function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
+            });
+
+        $yearBaseQuery = Hearing::query()
+            ->where('secretary_id', auth()->id())
+            ->where(function ($q) use ($yearStart, $yearEnd) {
+                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
+            });
 
         $hearingsToday = Hearing::with(['judges', 'prosecutor'])
             ->where('secretary_id', auth()->id())
-            ->whereDate('start_at', $today)
+            ->where(function ($q) use ($today) {
+                $q->whereDate('hearing_date', $today->toDateString())
+                    ->orWhereDate('start_at', $today->toDateString());
+            })
             ->orderBy('start_at')
             ->get();
 
-        $hearingsCountByDay = Hearing::where('secretary_id', auth()->id())
-            ->whereBetween('start_at', [$monthStart, $monthEnd])
+        $hearingsCountByDay = (clone $monthBaseQuery)
             ->get()
-            ->groupBy(fn ($h) => (int) \Carbon\Carbon::parse($h->start_at)->format('j'))
+            ->groupBy(function ($h) {
+                $date = $h->hearing_date ?: $h->start_at;
+
+                return (int) Carbon::parse($date)->format('j');
+            })
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        return view('secretary.dashboard', compact('hearingsToday', 'today', 'hearingsCountByDay'));
+        extract(HearingDashboardStatistics::decisionBreakdown($yearBaseQuery), EXTR_SKIP);
+
+        return view('secretary.dashboard', compact(
+            'hearingsToday',
+            'today',
+            'hearingsCountByDay',
+            'decisionOptions',
+            'decisionCounts',
+            'monthStart',
+            'monthEnd'
+        ));
     }
 }

@@ -89,6 +89,8 @@
     $roleKey = optional($u)->getRoleNames()->first();
     $roleLabel = match ($roleKey) {
         'admin' => 'Админ',
+        'head_of_department' => 'Хэлтсийн дарга',
+        'judge' => 'Шүүгч',
         'secretary' => 'Шүүгчийн туслах',
         'lawyer' => 'Өмгөөлөгч',
         'prosecutor' => 'Прокурор',
@@ -177,10 +179,12 @@
     {{-- Main --}}
     <div class="flex-1 flex flex-col min-w-0">
         <header class="h-14 shrink-0 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200/80 shadow-sm">
-            <h1 class="text-base font-semibold text-slate-800 truncate">
-                @yield('header','Хянах самбар')
-            </h1>
-            <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1">
+                @hasSection('header')
+                    <h1 class="text-base font-semibold text-slate-800 truncate">@yield('header')</h1>
+                @endif
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
                 <div class="relative" x-data="{ open: false }" @keydown.escape.window="open = false">
                     <button type="button"
                             @click="open = !open"

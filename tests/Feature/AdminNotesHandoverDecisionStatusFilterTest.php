@@ -172,3 +172,21 @@ it('filters hearings by selected clerk in admin notes list', function () {
         ->assertSee('CLERK-FILTER-INCLUDE')
         ->assertDontSee('CLERK-FILTER-EXCLUDE');
 });
+
+it('includes interrupted decision status in reschedule button visibility rule', function () {
+    ensureRole('admin');
+    ensureRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    createHearing([
+        'case_no' => 'ADMIN-RESCHEDULE-RULE-001',
+        'notes_decision_status' => 'Завсарласан',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.notes.index'))
+        ->assertOk()
+        ->assertSee("['Хойшилсон', 'Завсарласан', '60 хүртэлх хоногоор хойшлуулсан'].includes(decisionStatus)", false);
+});

@@ -25,9 +25,9 @@
     <div class="flex">
         <aside class="w-64 bg-white p-4 shadow min-h-screen">
             <ul class="space-y-2">
-                @role('admin')
+                @hasanyrole('admin|head_of_department')
                     <li><a href="{{ route('admin.dashboard') }}">Admin Dashboard</a></li>
-                @endrole
+                @endhasanyrole
 
                 @role('judge')
                     <li><a href="{{ route('judge.dashboard') }}">Judge Dashboard</a></li>

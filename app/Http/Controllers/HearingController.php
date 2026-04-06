@@ -194,6 +194,16 @@ class HearingController extends Controller
             'ignore_id' => ['nullable', 'integer'],
             'prosecutor_ids' => ['nullable', 'array'],
             'prosecutor_ids.*' => ['nullable', 'integer', 'exists:users,id'],
+            'defendant_lawyers_text' => ['nullable', 'array'],
+            'defendant_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_lawyers_text' => ['nullable', 'array'],
+            'victim_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_lawyers_text' => ['nullable', 'array'],
+            'victim_legal_rep_lawyers_text.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff_lawyers' => ['nullable', 'array'],
+            'civil_plaintiff_lawyers.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_lawyers' => ['nullable', 'array'],
+            'civil_defendant_lawyers.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         $judgeIds = $this->normalizeJudgeIds($request);
@@ -214,9 +224,17 @@ class HearingController extends Controller
             $duration
         );
 
+        $lawyerNames = array_values(array_filter(array_unique(array_merge(
+            $data['defendant_lawyers_text'] ?? [],
+            $data['victim_lawyers_text'] ?? [],
+            $data['victim_legal_rep_lawyers_text'] ?? [],
+            $data['civil_plaintiff_lawyers'] ?? [],
+            $data['civil_defendant_lawyers'] ?? []
+        ))));
+
         try {
             $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
-            $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, [], $data['ignore_id'] ?? null, $prosecutorIds);
+            $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, $data['ignore_id'] ?? null, $prosecutorIds);
 
             return response()->json(['ok' => true, 'field' => null]);
         } catch (ValidationException $e) {

@@ -119,7 +119,7 @@
                     <div>
                         <label class="text-sm font-semibold text-gray-700" for="hearing_state">Хурлын төлөв</label>
                         <select id="hearing_state" name="hearing_state" required class="mt-1 w-full rounded-md border px-3 py-2 {{ $errors->has('hearing_state') ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
-                            @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруу'] as $state)
+                            @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруугүй','Ял солих','Залруулга'] as $state)
                                 <option value="{{ $state }}" @selected(old('hearing_state', 'Хэвийн') === $state)>{{ $state }}</option>
                             @endforeach
                         </select>

@@ -1,7 +1,6 @@
 @extends('layouts.dashboard')
 
 @section('title', 'Хянах самбар')
-@section('header','Хянах самбар')
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

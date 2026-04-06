@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Lawyer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Support\HearingDashboardStatistics;
 use Carbon\Carbon;
-use Illuminate\Support\Arr;
 
 class DashboardController extends Controller
 {
@@ -19,52 +19,63 @@ class DashboardController extends Controller
 
         $monthStart = $today->copy()->startOfMonth();
         $monthEnd = $today->copy()->endOfMonth();
+        $yearStart = $today->copy()->startOfYear();
+        $yearEnd = $today->copy()->endOfDay();
 
-        $lawyerScope = fn ($q) => $q->whereJsonContains('defendant_lawyers_text', $name)
-            ->orWhereJsonContains('victim_lawyers_text', $name)
-            ->orWhereJsonContains('victim_legal_rep_lawyers_text', $name)
-            ->orWhereJsonContains('civil_plaintiff_lawyers', $name)
-            ->orWhereJsonContains('civil_defendant_lawyers', $name);
+        $lawyerScope = fn ($q) => $q->where(function ($query) use ($name) {
+            $query->whereJsonContains('defendant_lawyers_text', $name)
+                ->orWhereJsonContains('victim_lawyers_text', $name)
+                ->orWhereJsonContains('victim_legal_rep_lawyers_text', $name)
+                ->orWhereJsonContains('civil_plaintiff_lawyers', $name)
+                ->orWhereJsonContains('civil_defendant_lawyers', $name);
+        });
 
         $monthQuery = Hearing::query()
-            ->whereBetween('start_at', [$monthStart, $monthEnd])
-            ->where($lawyerScope);
+            ->where($lawyerScope)
+            ->where(function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
+            });
+
+        $yearQuery = Hearing::query()
+            ->where($lawyerScope)
+            ->where(function ($q) use ($yearStart, $yearEnd) {
+                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
+            });
 
         $hearingsToday = Hearing::with(['judges', 'prosecutor'])
-            ->whereDate('start_at', $today)
             ->where($lawyerScope)
+            ->where(function ($q) use ($today) {
+                $q->whereDate('hearing_date', $today->toDateString())
+                    ->orWhereDate('start_at', $today->toDateString());
+            })
+            ->orderBy('hearing_date')
+            ->orderBy('hour')
+            ->orderBy('minute')
             ->orderBy('start_at')
             ->get();
 
         $hearingsCountByDay = (clone $monthQuery)
             ->get()
-            ->groupBy(fn ($h) => (int) Carbon::parse($h->start_at)->format('j'))
+            ->groupBy(function ($h) {
+                $date = $h->hearing_date ?: $h->start_at;
+
+                return (int) Carbon::parse($date)->format('j');
+            })
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        $decisionOptions = [
-            'Хүлээгдэж буй' => 'Хүлээгдэж буй',
-            'Шийдвэрлэсэн' => 'Шийдвэрлэсэн',
-            'Хойшилсон' => 'Хойшилсон',
-            'Завсарласан' => 'Завсарласан',
-            'Прокурорт буцаасан' => 'Прокурорт буцаасан',
-            'Яллагдагчийг шүүхэд шилжүүлсэн' => 'Яллагдагчийг шүүхэд шилжүүлсэн',
-            '60 хүртэлх хоногоор хойшлуулсан' => '60 хүртэлх хоногоор хойшлуулсан',
-        ];
+        extract(HearingDashboardStatistics::decisionBreakdown($yearQuery), EXTR_SKIP);
 
-        $rawDecisionCounts = (clone $monthQuery)
-            ->select(['notes_decision_status'])
-            ->get()
-            ->groupBy(fn ($hearing) => trim((string) ($hearing->notes_decision_status ?? '')) === '' ? 'Хүлээгдэж буй' : $hearing->notes_decision_status)
-            ->map(fn ($group) => $group->count())
-            ->toArray();
-
-        $decisionCounts = [];
-        foreach (array_keys($decisionOptions) as $key) {
-            $decisionCounts[$key] = (int) Arr::get($rawDecisionCounts, $key, 0);
-        }
-
-        return view('lawyer.dashboard', compact('hearingsToday', 'today', 'hearingsCountByDay', 'decisionOptions', 'decisionCounts'));
+        return view('lawyer.dashboard', compact(
+            'hearingsToday',
+            'today',
+            'hearingsCountByDay',
+            'decisionOptions',
+            'decisionCounts',
+            'monthStart',
+            'monthEnd'
+        ));
     }
 }
-

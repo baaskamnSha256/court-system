@@ -11,9 +11,6 @@
 
     <div class="flex flex-wrap items-center justify-between gap-4">
         <h1 class="text-lg font-semibold text-slate-800">Хурлын зарууд</h1>
-        <a href="{{ route('court_clerk.hearings.create') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-white text-sm font-medium hover:bg-slate-700 transition-colors shadow-sm">
-            + Хурлын зар оруулах
-        </a>
     </div>
 
     <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
@@ -23,7 +20,7 @@
                     <tr class="bg-slate-50 border-b border-slate-200">
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Огноо</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Гарчиг</th>
-                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Хэрэг</th>
+                        <th class="px-4 py-3 text-left font-semibold text-slate-700">Шүүх хуралдааны шийдвэр</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Танхим</th>
                         <th class="px-4 py-3 text-left font-semibold text-slate-700">Статус</th>
                         <th class="px-4 py-3 text-right font-semibold text-slate-700">Үйлдэл</th>
@@ -34,7 +31,7 @@
                         <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
                             <td class="px-4 py-3 text-slate-700">{{ optional($h->start_at)->format('Y-m-d H:i') ?? '-' }}</td>
                             <td class="px-4 py-3 text-slate-700">{{ $h->title ?? $h->hearing_state ?? '—' }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ $h->case_no ?? '-' }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ $h->notes_decision_status ?: 'Хүлээгдэж буй' }}</td>
                             <td class="px-4 py-3 text-slate-700">{{ $h->courtroom ?? '-' }}</td>
                             <td class="px-4 py-3 text-slate-700">{{ $h->status }}</td>
                             <td class="px-4 py-3 text-right">

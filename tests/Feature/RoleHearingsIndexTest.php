@@ -104,12 +104,12 @@ it('shows pending decision count for judge dashboard', function () {
 
     $pendingHearing = createHearing([
         'case_no' => 'J-PENDING-001',
-        'start_at' => now()->startOfMonth()->addDays(2),
+        'start_at' => now()->copy()->startOfDay(),
         'notes_decision_status' => null,
     ]);
     $resolvedHearing = createHearing([
         'case_no' => 'J-RESOLVED-001',
-        'start_at' => now()->startOfMonth()->addDays(3),
+        'start_at' => now()->copy()->startOfDay()->addHour(),
         'notes_decision_status' => 'Шийдвэрлэсэн',
     ]);
 

@@ -38,7 +38,9 @@
                 <input
                     type="email"
                     name="email"
+                    value="{{ old('email') }}"
                     required
+                    autocomplete="email"
                     class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
                 >
             </div>

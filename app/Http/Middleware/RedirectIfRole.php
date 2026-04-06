@@ -14,7 +14,7 @@ class RedirectIfRole
 
         // Хэрэв нэвтэрсэн бол role-оор чиглүүлэх
         if ($user) {
-            if ($user->hasRole('admin')) {
+            if ($user->hasAnyRole(['admin', 'head_of_department'])) {
                 return redirect()->route('admin.dashboard');
             }
             if ($user->hasRole('judge')) {

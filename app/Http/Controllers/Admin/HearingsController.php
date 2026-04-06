@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
 use App\Models\User;
+use App\Services\Notifications\HearingNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,6 +19,8 @@ class HearingsController extends Controller
 
     public function index(Request $request)
     {
+        $isHeadOfDepartment = auth()->user()?->hasRole('head_of_department');
+
         // Огноо → цаг → танхимаар эрэмбэлнэ (эхлээд өдөр, дараа нь цаг, эцэст нь танхим)
         $query = Hearing::query()
             ->with(['judges', 'prosecutor'])
@@ -57,8 +60,8 @@ class HearingsController extends Controller
             'hearings' => $hearings,
             'hearingStateCounts' => $hearingStateCounts,
             'states' => $states,
-            'indexType' => 'admin',
-            'headerTitle' => 'Хурлын зар засварлах',
+            'indexType' => $isHeadOfDepartment ? 'readonly' : 'admin',
+            'headerTitle' => '',
             'listTitle' => 'Хурлын зарууд',
             'createUrl' => route('admin.hearings.create'),
             'createLabel' => 'Хурлын зар оруулах',
@@ -411,7 +414,7 @@ class HearingsController extends Controller
         // Давхцал шалгах (танхим, шүүгч, өмгөөлөгч)
         $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, null, $prosecutorIds);
 
-        return DB::transaction(function () use ($request, $data, $start, $end, $duration, $prosecutorIds) {
+        $hearing = DB::transaction(function () use ($request, $data, $start, $end, $duration, $prosecutorIds) {
 
             $hearing = Hearing::create([
                 'created_by' => auth()->id(),
@@ -460,10 +463,14 @@ class HearingsController extends Controller
 
             $this->syncJudgesPivot($hearing, $request);
 
-            return redirect()
-                ->route('admin.hearings.index')
-                ->with('success', 'Хурлын зар амжилттай бүртгэлээ.');
+            return $hearing;
         });
+
+        $this->dispatchHearingNotification($hearing, 'created');
+
+        return redirect()
+            ->route('admin.hearings.index')
+            ->with('success', 'Хурлын зар амжилттай бүртгэлээ.');
     }
 
     /**
@@ -592,7 +599,7 @@ class HearingsController extends Controller
         // Давхцал шалгах (өөрийн record-оо 제외) — танхим, шүүгч, өмгөөлөгч
         $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, $hearing->id, $prosecutorIds);
 
-        return DB::transaction(function () use ($request, $data, $hearing, $start, $end, $duration, $prosecutorIds) {
+        $hearing = DB::transaction(function () use ($request, $data, $hearing, $start, $end, $duration, $prosecutorIds) {
 
             $hearing->update([
                 'case_no' => $data['case_no'] ?? null,
@@ -638,10 +645,14 @@ class HearingsController extends Controller
 
             $this->syncJudgesPivot($hearing, $request);
 
-            return redirect()
-                ->route('admin.hearings.index')
-                ->with('success', 'Хурлын зар амжилттай шинэчлэгдлээ.');
+            return $hearing->fresh();
         });
+
+        $this->dispatchHearingNotification($hearing, 'updated');
+
+        return redirect()
+            ->route('admin.hearings.index')
+            ->with('success', 'Хурлын зар амжилттай шинэчлэгдлээ.');
     }
 
     /**
@@ -730,5 +741,10 @@ class HearingsController extends Controller
 
             return response()->json(['ok' => false, 'field' => $field, 'message' => $msg]);
         }
+    }
+
+    private function dispatchHearingNotification(Hearing $hearing, string $action): void
+    {
+        app(HearingNotificationService::class)->send($hearing, $action);
     }
 }

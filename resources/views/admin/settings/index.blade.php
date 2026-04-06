@@ -8,6 +8,24 @@
     <p class="text-gray-600">Системийн тохиргоог эндээс удирдана.</p>
 
     <div class="grid gap-3">
+        <a href="{{ route('admin.reports.index') }}"
+           class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2V7m3 10v-4m3 8H6a2 2 0 01-2-2V5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="font-semibold text-gray-900">Тайлан</div>
+                    <div class="text-sm text-gray-500">Тайлангийн төрлүүд рүү орж статистик харах</div>
+                </div>
+            </div>
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+        </a>
+
         <a href="{{ route('admin.matter-categories.index') }}"
            class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div class="flex items-center gap-3">

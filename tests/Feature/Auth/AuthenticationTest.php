@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
 
 function authTestEnsureRole(string $name): Role
@@ -14,7 +15,9 @@ function authTestEnsureRole(string $name): Role
 test('login screen can be rendered', function () {
     $response = $this->get(route('login'));
 
-    $response->assertOk();
+    $response->assertOk()
+        ->assertSee('Шүүх Хуралдааны зар товлох дотоод удирдлагын систем')
+        ->assertSee('data-password-toggle', false);
 });
 
 test('users can authenticate using the login screen', function () {
@@ -33,6 +36,59 @@ test('users can authenticate using the login screen', function () {
         ->assertRedirect(route('admin.dashboard', absolute: false));
 
     $this->assertAuthenticated();
+});
+
+test('head of department users are redirected to admin dashboard', function () {
+    authTestEnsureRole('head_of_department');
+
+    $user = User::factory()->create();
+    $user->assignRole('head_of_department');
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('admin.dashboard', absolute: false));
+
+    $this->assertAuthenticatedAs($user);
+});
+
+test('remember me queues persistent login cookie', function () {
+    authTestEnsureRole('admin');
+
+    $user = User::factory()->create();
+    $user->assignRole('admin');
+
+    $recaller = Auth::guard('web')->getRecallerName();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+        'remember' => '1',
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertCookieNotExpired($recaller);
+
+    $this->assertAuthenticatedAs($user);
+});
+
+test('remember me is omitted when checkbox not sent', function () {
+    authTestEnsureRole('admin');
+
+    $user = User::factory()->create();
+    $user->assignRole('admin');
+
+    $recaller = Auth::guard('web')->getRecallerName();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertCookieMissing($recaller);
 });
 
 test('users can authenticate when email casing differs from stored value', function () {

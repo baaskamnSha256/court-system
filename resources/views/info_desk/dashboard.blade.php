@@ -1,6 +1,6 @@
 @extends('layouts.dashboard')
-@section('title','Info Desk Dashboard')
-@section('header','')
+@section('title', 'Мэдээлэл лавлагаа')
+@section('header', '')
 
 @section('content')
 <div class="space-y-6">

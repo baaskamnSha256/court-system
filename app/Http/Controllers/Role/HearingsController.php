@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Role;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -94,10 +95,35 @@ class HearingsController extends Controller
         ]);
     }
 
+    public function courtClerkIndex(Request $request): View
+    {
+        $userId = (int) auth()->id();
+
+        $query = Hearing::query()
+            ->with(['judges', 'prosecutor'])
+            ->where('clerk_id', $userId)
+            ->orderBy('start_at', 'asc')
+            ->orderBy('courtroom', 'asc');
+
+        $this->applyFilters($request, $query);
+        $hearings = $query->paginate(20)->withQueryString();
+
+        return view('hearings.index', [
+            'headerTitle' => 'Хурлын зар (Шүүх хурлын нарийн бичгийн дарга)',
+            'listTitle' => 'Миний хариуцсан хурлын зарууд',
+            'hearings' => $hearings,
+            'indexType' => 'readonly',
+            'searchUrl' => route('court_clerk.hearings.index'),
+            'createUrl' => route('court_clerk.hearings.index'),
+            'createLabel' => 'Шинэ зар оруулах эрхгүй',
+            'courtrooms' => $this->allowedCourtrooms(),
+        ]);
+    }
+
     private function applyFilters(Request $request, Builder $query): void
     {
         if ($request->filled('q')) {
-            $search = '%' . $request->input('q') . '%';
+            $search = '%'.$request->input('q').'%';
             $query->where(function (Builder $builder) use ($search) {
                 $builder->where('case_no', 'like', $search)
                     ->orWhere('courtroom', 'like', $search)
@@ -107,6 +133,22 @@ class HearingsController extends Controller
 
         if ($request->filled('hearing_date')) {
             $query->whereDate('hearing_date', $request->input('hearing_date'));
+        }
+
+        if ($request->filled('hearing_date_from') && $request->filled('hearing_date_to')) {
+            $from = $request->input('hearing_date_from');
+            $to = $request->input('hearing_date_to');
+            $query->where(function (Builder $outer) use ($from, $to) {
+                $outer->where(function (Builder $q) use ($from, $to) {
+                    $q->whereNotNull('hearing_date')
+                        ->whereBetween('hearing_date', [$from, $to]);
+                })->orWhere(function (Builder $q) use ($from, $to) {
+                    $q->whereBetween('start_at', [
+                        Carbon::parse($from)->startOfDay(),
+                        Carbon::parse($to)->endOfDay(),
+                    ]);
+                });
+            });
         }
 
         if ($request->filled('courtroom')) {

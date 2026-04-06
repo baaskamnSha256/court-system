@@ -38,7 +38,7 @@
             <div>
                 <label class="text-sm font-semibold text-gray-700">Хурлын төлөв</label>
                 <select name="hearing_state" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2">
-                    @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруугүй'] as $state)
+                    @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруугүй','Ял солих','Залруулга'] as $state)
                         <option value="{{ $state }}" @selected(old('hearing_state', $hearing->hearing_state ?? 'Хэвийн') === $state)>{{ $state }}</option>
                     @endforeach
                 </select>

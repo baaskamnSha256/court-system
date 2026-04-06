@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Support\HearingDashboardStatistics;
 use Carbon\Carbon;
-use Illuminate\Support\Arr;
 
 class DashboardController extends Controller
 {
@@ -18,11 +18,18 @@ class DashboardController extends Controller
 
         $monthStart = $today->copy()->startOfMonth();
         $monthEnd = $today->copy()->endOfMonth();
+        $yearStart = $today->copy()->startOfYear();
+        $yearEnd = $today->copy()->endOfDay();
 
         $monthQuery = Hearing::query()
             ->where(function ($q) use ($monthStart, $monthEnd) {
                 $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                     ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
+            });
+        $yearQuery = Hearing::query()
+            ->where(function ($q) use ($yearStart, $yearEnd) {
+                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
             });
 
         $hearingsToday = Hearing::with(['judges', 'prosecutor'])
@@ -46,40 +53,7 @@ class DashboardController extends Controller
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        $decidedStatuses = [
-            'Шийдвэрлэсэн',
-            'Хойшилсон',
-            'Завсарласан',
-            'Прокурорт буцаасан',
-            'Яллагдагчийг шүүхэд шилжүүлсэн',
-            '60 хүртэлх хоногоор хойшлуулсан',
-        ];
-
-        $decisionOptions = [
-            'Хүлээгдэж буй' => 'Хүлээгдэж буй',
-            ...array_fill_keys($decidedStatuses, null),
-        ];
-        foreach ($decidedStatuses as $s) {
-            $decisionOptions[$s] = $s;
-        }
-
-        $totalForMonth = (clone $monthQuery)->count();
-        $decidedTotal = (clone $monthQuery)->whereIn('notes_decision_status', $decidedStatuses)->count();
-        $pendingCount = max(0, $totalForMonth - $decidedTotal);
-
-        $rawDecisionCounts = (clone $monthQuery)
-            ->select(['notes_decision_status'])
-            ->whereIn('notes_decision_status', $decidedStatuses)
-            ->get()
-            ->groupBy('notes_decision_status')
-            ->map(fn ($g) => $g->count())
-            ->toArray();
-
-        $decisionCounts = [];
-        $decisionCounts['Хүлээгдэж буй'] = $pendingCount;
-        foreach ($decidedStatuses as $k) {
-            $decisionCounts[$k] = (int) Arr::get($rawDecisionCounts, $k, 0);
-        }
+        extract(HearingDashboardStatistics::decisionBreakdown($yearQuery), EXTR_SKIP);
 
         return view('admin.dashboard', compact(
             'hearingsToday',

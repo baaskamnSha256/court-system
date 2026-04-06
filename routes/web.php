@@ -50,7 +50,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', function () {
         $u = auth()->user();
-        if ($u->hasRole('admin')) {
+        if ($u->hasAnyRole(['admin', 'head_of_department'])) {
             return redirect()->route('admin.dashboard');
         }
         if ($u->hasRole('judge')) {
@@ -75,20 +75,21 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard');
 
     // Admin
-    Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware(['role:admin|head_of_department'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboard::class, 'index'])->name('dashboard');
         Route::get('/users', [UsersController::class, 'index'])->name('users.index');
-        Route::post('/users', [UsersController::class, 'store'])->name('users.store');
-        Route::patch('/users/{user}/toggle', [UsersController::class, 'toggle'])->name('users.toggle');
-        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
+        Route::post('/users', [UsersController::class, 'store'])->middleware('role:admin')->name('users.store');
+        Route::patch('/users/{user}/toggle', [UsersController::class, 'toggle'])->middleware('role:admin')->name('users.toggle');
+        Route::get('/users/{user}/edit', [UsersController::class, 'edit'])->middleware('role:admin')->name('users.edit');
+        Route::put('/users/{user}', [UsersController::class, 'update'])->middleware('role:admin')->name('users.update');
 
-        Route::post('hearings/check-conflict', [AdminHearings::class, 'checkConflict'])->name('hearings.checkConflict');
-        Route::get('hearings/by-date', [AdminHearings::class, 'byDate'])->name('hearings.byDate');
-        Route::get('defendant-search', [DefendantSearchController::class, 'search'])->name('defendant-search');
-        Route::get('hearings/print', [HearingPrintController::class, 'index'])->name('hearings.print');
-        Route::get('hearings/print/excel', [HearingPrintController::class, 'download'])->name('hearings.print.download');
-        Route::resource('hearings', AdminHearings::class)->except(['show']);
+        Route::post('hearings/check-conflict', [AdminHearings::class, 'checkConflict'])->middleware('role:admin')->name('hearings.checkConflict');
+        Route::get('hearings/by-date', [AdminHearings::class, 'byDate'])->middleware('role:admin')->name('hearings.byDate');
+        Route::get('defendant-search', [DefendantSearchController::class, 'search'])->middleware('role:admin')->name('defendant-search');
+        Route::get('hearings/print', [HearingPrintController::class, 'index'])->middleware('role:admin')->name('hearings.print');
+        Route::get('hearings/print/excel', [HearingPrintController::class, 'download'])->middleware('role:admin')->name('hearings.print.download');
+        Route::get('hearings', [AdminHearings::class, 'index'])->name('hearings.index');
+        Route::resource('hearings', AdminHearings::class)->middleware('role:admin')->except(['show', 'index']);
 
         Route::get('/notes-handover', [NotesHandoverController::class, 'index'])->name('notes.index');
         Route::patch('/notes-handover/{hearing}', [NotesHandoverController::class, 'update'])->name('notes.update');
@@ -134,12 +135,13 @@ Route::middleware(['auth'])->group(function () {
     // Court Clerk
     Route::middleware(['role:court_clerk'])->prefix('court-clerk')->name('court_clerk.')->group(function () {
         Route::get('/', [CourtClerkDashboard::class, 'index'])->name('dashboard');
+        Route::get('/hearings', [RoleHearingsController::class, 'courtClerkIndex'])->name('hearings.index');
         Route::get('/notes-handover', [\App\Http\Controllers\CourtClerk\NotesHandoverController::class, 'index'])->name('notes.index');
         Route::patch('/notes-handover/{hearing}', [\App\Http\Controllers\CourtClerk\NotesHandoverController::class, 'update'])->name('notes.update');
         Route::get('/reports', [\App\Http\Controllers\CourtClerk\ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/excel', [\App\Http\Controllers\CourtClerk\ReportController::class, 'download'])->name('reports.download');
         Route::post('hearings/check-conflict', [HearingController::class, 'checkConflict'])->name('hearings.checkConflict');
-        Route::resource('hearings', HearingController::class)->except(['create', 'store']);
+        Route::resource('hearings', HearingController::class)->except(['index', 'create', 'store']);
     });
 
     // Info Desk

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\CourtClerk;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Support\HearingDashboardStatistics;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -18,6 +19,8 @@ class DashboardController extends Controller
 
         $monthStart = $today->copy()->startOfMonth();
         $monthEnd = $today->copy()->endOfMonth();
+        $yearStart = $today->copy()->startOfYear();
+        $yearEnd = $today->copy()->endOfDay();
 
         $monthBaseQuery = Hearing::query()
             ->where('clerk_id', $userId)
@@ -26,9 +29,12 @@ class DashboardController extends Controller
                     ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
             });
 
-        $monthTotalHearings = (clone $monthBaseQuery)->count();
-        $monthIssuedHearings = (clone $monthBaseQuery)->where('notes_handover_issued', true)->count();
-        $monthPendingHearings = max(0, $monthTotalHearings - $monthIssuedHearings);
+        $yearBaseQuery = Hearing::query()
+            ->where('clerk_id', $userId)
+            ->where(function ($q) use ($yearStart, $yearEnd) {
+                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
+                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
+            });
 
         $hearingsToday = Hearing::with(['judges', 'prosecutor'])
             ->where('clerk_id', $userId)
@@ -42,26 +48,26 @@ class DashboardController extends Controller
             ->orderBy('start_at')
             ->get();
 
-        $hearingsCountByDay = Hearing::where('clerk_id', $userId)
-            ->where(function ($q) use ($monthStart, $monthEnd) {
-                $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
-                    ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
-            })
+        $hearingsCountByDay = (clone $monthBaseQuery)
             ->get()
             ->groupBy(function ($h) {
                 $date = $h->hearing_date ?: $h->start_at;
+
                 return (int) Carbon::parse($date)->format('j');
             })
             ->map(fn ($group) => $group->count())
             ->toArray();
 
+        extract(HearingDashboardStatistics::decisionBreakdown($yearBaseQuery), EXTR_SKIP);
+
         return view('court_clerk.dashboard', compact(
             'hearingsToday',
             'today',
             'hearingsCountByDay',
-            'monthTotalHearings',
-            'monthIssuedHearings',
-            'monthPendingHearings'
+            'decisionOptions',
+            'decisionCounts',
+            'monthStart',
+            'monthEnd'
         ));
     }
 }

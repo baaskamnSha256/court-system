@@ -11,6 +11,23 @@ use Spatie\Permission\Models\Role;
 
 class UsersController extends Controller
 {
+    /**
+     * @return list<string>
+     */
+    private function allowedRoleNames(): array
+    {
+        return [
+            'admin',
+            'head_of_department',
+            'judge',
+            'secretary',
+            'prosecutor',
+            'court_clerk',
+            'info_desk',
+            'lawyer',
+        ];
+    }
+
     public function index(Request $request)
     {
         $q = trim((string) $request->get('q', ''));
@@ -51,6 +68,12 @@ class UsersController extends Controller
             ]);
 
         $roles = Role::orderBy('name')->get();
+        $workplaceSuggestions = User::query()
+            ->whereNotNull('workplace')
+            ->where('workplace', '!=', '')
+            ->distinct()
+            ->orderBy('workplace')
+            ->pluck('workplace');
 
         // ✅ role бүрийн count (filter-үүдээс ХАМААРУУЛАХ эсэхийг чи шийднэ)
         // Доорх нь НИЙТ-ийг (filter үл хамаарна) тоолж байна:
@@ -66,7 +89,7 @@ class UsersController extends Controller
         $totalUsers = User::count();
 
         return view('admin.users.index', compact(
-            'users', 'roles', 'roleCounts', 'totalUsers', 'q', 'role', 'status'
+            'users', 'roles', 'roleCounts', 'totalUsers', 'q', 'role', 'status', 'workplaceSuggestions'
         ));
     }
 
@@ -93,7 +116,7 @@ class UsersController extends Controller
             ],
 
             'workplace' => ['nullable', 'string', 'max:255'],
-            'role' => ['required', 'string'],
+            'role' => ['required', 'string', Rule::in($this->allowedRoleNames())],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -107,7 +130,12 @@ class UsersController extends Controller
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        $user->assignRole($data['role']);
+        $roleName = (string) $data['role'];
+        Role::firstOrCreate([
+            'name' => $roleName,
+            'guard_name' => 'web',
+        ]);
+        $user->assignRole($roleName);
 
         return back()->with('success', 'Хэрэглэгч нэмлээ.');
 
@@ -135,13 +163,14 @@ class UsersController extends Controller
             'register_number' => $request->register_number
                 ? mb_strtoupper(trim($request->register_number), 'UTF-8')
                 : null,
+            'password' => $request->filled('password') ? $request->input('password') : null,
         ]);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'workplace' => ['nullable', 'string', 'max:255'],
-            'role' => ['required', 'string'],
+            'role' => ['required', 'string', Rule::in($this->allowedRoleNames())],
             'password' => ['nullable', 'string', 'min:6'],
             'phone' => ['nullable', 'regex:/^[0-9]{8}$/'],
             'register_number' => [
@@ -157,13 +186,22 @@ class UsersController extends Controller
         $user->phone = $data['phone'] ?? null;
         $user->register_number = $data['register_number'] ?? null;
 
+        if ($request->has('is_active')) {
+            $user->is_active = $request->boolean('is_active');
+        }
+
         if (! empty($data['password'])) {
             $user->password = Hash::make($data['password']);
         }
 
         $user->save();
 
-        $user->syncRoles([$data['role']]);
+        $roleName = (string) $data['role'];
+        Role::firstOrCreate([
+            'name' => $roleName,
+            'guard_name' => 'web',
+        ]);
+        $user->syncRoles([$roleName]);
 
         return redirect()->route('admin.users.index')->with('success', 'Хэрэглэгчийн мэдээлэл шинэчлэгдлээ.');
     }

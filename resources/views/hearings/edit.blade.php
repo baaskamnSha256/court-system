@@ -120,7 +120,7 @@
             <div>
                 <label class="text-sm font-semibold text-gray-700">Хурлын төлөв</label>
                 <select name="hearing_state" required class="mt-1 w-full rounded-md border px-3 py-2 {{ $errors->has('hearing_state') ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
-                    @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруу'] as $state)
+                    @foreach(['Хэвийн','Урьдчилсан хэлэлцүүлэг','Эрүүгийн хариуцлага','Хаалттай','Гэм буруугүй','Ял солих','Залруулга'] as $state)
                         <option value="{{ $state }}" @selected(old('hearing_state', $hearing->hearing_state ?? 'Хэвийн') === $state)>{{ $state }}</option>
                     @endforeach
                 </select>
@@ -387,16 +387,27 @@
         <div class="grid grid-cols-1 gap-4">
             @php
                 $pmRaw = old('preventive_measure', $hearing->preventive_measure);
-                $pmEdit = is_array($pmRaw) ? $pmRaw : (is_string($pmRaw) && $pmRaw !== '' ? array_values(array_filter(array_map('trim', explode(',', $pmRaw)))) : []);
-                $pmSelectedEdit = collect($pmEdit)->filter()->values()->map(fn($v) => ['id' => $v, 'name' => $v])->values();
-                $pmOptionsEdit = collect([
+                $pmOptionValues = [
                     'хувийн баталгаа гаргах',
                     'тодорхой үйл ажиллагаа явуулах, албан үүргээ биелүүлэхийг түдгэлзүүлэх',
                     'хязгаарлалт тогтоох',
                     'барьцаа авах',
                     'цагдан хорих',
                     'цэргийн ангийн удирдлагад хянан харгалзуулах',
-                ])->map(fn($v) => ['id' => $v, 'name' => $v])->values();
+                ];
+                if (is_array($pmRaw)) {
+                    $pmEdit = $pmRaw;
+                } elseif (is_string($pmRaw) && trim($pmRaw) !== '') {
+                    // Option доторх таслалтай утгыг эвдэхгүйгээр мэдэгдэж буй option-уудаар танина.
+                    $pmEdit = collect($pmOptionValues)
+                        ->filter(fn ($opt) => str_contains($pmRaw, $opt))
+                        ->values()
+                        ->all();
+                } else {
+                    $pmEdit = [];
+                }
+                $pmSelectedEdit = collect($pmEdit)->filter()->values()->map(fn($v) => ['id' => $v, 'name' => $v])->values();
+                $pmOptionsEdit = collect($pmOptionValues)->map(fn($v) => ['id' => $v, 'name' => $v])->values();
             @endphp
             @php
                 $hasPreventiveError = collect($errors->keys())->contains(fn($k) => str_starts_with((string)$k, 'preventive_measure'));

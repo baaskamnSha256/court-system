@@ -7,14 +7,46 @@
 @php
     $roleLabels = [
         'admin' => 'Админ',
+        'head_of_department' => 'Хэлтсийн дарга',
         'judge' => 'Шүүгч',
         'secretary' => 'Шүүгчийн туслах',
         'prosecutor' => 'Прокурор',
+        'lawyer' => 'Өмгөөлөгч',
         'court_clerk' => 'Шүүх хуралын нарийн бичгийн дарга',
         'info_desk' => 'Мэдээлэл лавлагаа',
     ];
+    $roleOptions = collect($roles ?? [])
+        ->map(fn ($role) => is_string($role) ? $role : $role->name)
+        ->filter()
+        ->values();
+    if (! $roleOptions->contains('head_of_department')) {
+        $roleOptions->push('head_of_department');
+    }
+    $canManageUsers = auth()->user()?->hasRole('admin');
 @endphp
-<div x-data="{ openCreate:false, openEdit:false, editUser:{} }" class="space-y-4">
+<div
+    x-data="{
+        openCreate:false,
+        openEdit:false,
+        editUser:{},
+        resetCreateForm() {
+            if (! this.$refs.createForm) {
+                return;
+            }
+
+            const emailInput = this.$refs.createForm.querySelector('input[name=email]');
+            if (emailInput) {
+                emailInput.value = '';
+            }
+
+            const passwordInput = this.$refs.createForm.querySelector('input[name=password]');
+            if (passwordInput) {
+                passwordInput.value = '';
+            }
+        }
+    }"
+    class="space-y-4"
+>
 
     {{-- Top bar: search + button --}}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -76,15 +108,17 @@
         </a>
     @endif
 </form>
-        <button
-            type="button"
-            @click="openCreate=true"
-            class="px-4 py-2 rounded-md bg-blue-700 text-white hover:bg-blue-800">
-        Хэрэглэгч нэмэх
-        </button>
+        @if($canManageUsers)
+            <button
+                type="button"
+                @click="resetCreateForm(); openCreate=true"
+                class="px-4 py-2 rounded-md bg-blue-700 text-white hover:bg-blue-800">
+            Хэрэглэгч нэмэх
+            </button>
+        @endif
     </div>
     {{-- Role counts --}}
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-6">
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-6">
     <div class="rounded-lg border bg-white p-3">
         <div class="text-xs text-gray-500">Нийт хэрэглэгч</div>
         <div class="text-2xl font-extrabold">{{ $totalUsers ?? 0 }}</div>
@@ -93,6 +127,7 @@
     @php
         $cards = [
             'admin' => 'border-blue-200 bg-blue-50 text-blue-900',
+            'head_of_department' => 'border-cyan-200 bg-cyan-50 text-cyan-900',
             'judge' => 'border-green-200 bg-green-50 text-green-900',
             'secretary' => 'border-indigo-200 bg-indigo-50 text-indigo-900',
             'lawyer' => 'border-amber-200 bg-amber-50 text-amber-900',
@@ -103,12 +138,19 @@
     @endphp
 
     @foreach($cards as $roleName => $cls)
-        <div class="rounded-lg border p-3 {{ $cls }}">
+        @php
+            $isRoleActive = (($role ?? request('role')) === $roleName);
+            $cardFilters = array_merge(request()->except('page', 'role'), ['role' => $roleName]);
+        @endphp
+        <a
+            href="{{ route('admin.users.index', $cardFilters) }}"
+            class="rounded-lg border p-3 {{ $cls }} transition hover:shadow-sm hover:-translate-y-0.5 {{ $isRoleActive ? 'ring-2 ring-blue-500' : '' }}"
+        >
             <div class="text-xs opacity-80">{{ $roleLabels[$roleName] ?? strtoupper($roleName) }}</div>
             <div class="text-2xl font-extrabold">
-                {{ $roleCounts[$roleName] ?? 0 }} 
+                {{ $roleCounts[$roleName] ?? 0 }}
             </div>
-        </div>
+        </a>
     @endforeach
 </div>
 
@@ -130,7 +172,9 @@
                 <th class="p-3">Ажил</th>
                 <th class="p-3">Эрх</th>
                 <th class="p-3">Идэвх</th>
-                <th class="p-3 text-right">Үйлдэл</th>
+                @if($canManageUsers)
+                    <th class="p-3 text-right">Үйлдэл</th>
+                @endif
             </tr>
             </thead>
             <tbody>
@@ -149,31 +193,33 @@
                             <span class="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs font-semibold">Inactive</span>
                         @endif
                     </td>
-                    <td class="p-3 text-right">
-                    <button
-                        type="button"
-                         class="px-3 py-1.5 rounded-md border hover:bg-blue-400"
-                        @click="
-                        editUser = {
-                        id: {{ $u->id }},
-                        name: @js($u->name),
-                        email: @js($u->email),
-                        phone: @js($u->phone),
-                        register_number: @js($u->register_number),
-                        workplace: @js($u->workplace),
-                        role: @js($u->getRoleNames()->first()),
-                        is_active: {{ $u->is_active ? 'true' : 'false' }},
-                        };
-                        openEdit = true;
-                        "
-                        >
-                        Засварлах
-                        </button>
-                    </td>
+                    @if($canManageUsers)
+                        <td class="p-3 text-right">
+                        <button
+                            type="button"
+                             class="px-3 py-1.5 rounded-md border hover:bg-blue-400"
+                            @click="
+                            editUser = {
+                            id: {{ $u->id }},
+                            name: @js($u->name),
+                            email: @js($u->email),
+                            phone: @js($u->phone),
+                            register_number: @js($u->register_number),
+                            workplace: @js($u->workplace),
+                            role: @js($u->getRoleNames()->first()),
+                            is_active: {{ $u->is_active ? 'true' : 'false' }},
+                            };
+                            openEdit = true;
+                            "
+                            >
+                            Засварлах
+                            </button>
+                        </td>
+                    @endif
                 </tr>
             @empty
                 <tr>
-                    <td class="p-3 text-gray-500" colspan="8">Хэрэглэгч олдсонгүй.</td>
+                    <td class="p-3 text-gray-500" colspan="{{ $canManageUsers ? 8 : 7 }}">Хэрэглэгч олдсонгүй.</td>
                 </tr>
             @endforelse
             </tbody>
@@ -185,6 +231,7 @@
     </div>
 
     {{-- MODAL: Create User --}}
+    @if($canManageUsers)
     <div
         x-show="openCreate"
         x-cloak
@@ -193,16 +240,22 @@
         role="dialog"
     >
         {{-- Backdrop --}}
-        <div class="absolute inset-0 bg-black/50" @click="openCreate=false"></div>
+        <div class="absolute inset-0 bg-black/50" @click="openCreate=false; resetCreateForm()"></div>
 
         {{-- Modal panel --}}
         <div class="relative bg-white w-full max-w-xl rounded-xl shadow-xl border p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold">Шинэ хэрэглэгч нэмэх</h3>
-                <button class="text-gray-600 hover:text-gray-900" @click="openCreate=false">✕</button>
+                <button class="text-gray-600 hover:text-gray-900" @click="openCreate=false; resetCreateForm()">✕</button>
             </div>
 
-            <form method="POST" action="{{ route('admin.users.store') }}" class="space-y-4">
+            <form
+                x-ref="createForm"
+                method="POST"
+                action="{{ route('admin.users.store') }}"
+                class="space-y-4"
+                autocomplete="off"
+            >
                 @csrf
 
                 <div>
@@ -216,6 +269,7 @@
                     <div>
                         <label class="block text-sm font-semibold mb-1">Имэйл</label>
                         <input type="email" name="email" value="{{ old('email') }}"
+                               autocomplete="off"
                                class="w-full border rounded-md px-3 py-2">
                         @error('email')<p class="text-red-600 text-sm">{{ $message }}</p>@enderror
                     </div>
@@ -242,6 +296,7 @@
                     <div>
                         <label class="block text-sm font-semibold mb-1">Нууц үг</label>
                         <input type="password" name="password"
+                               autocomplete="new-password"
                                class="w-full border rounded-md px-3 py-2">
                         @error('password')<p class="text-red-600 text-sm">{{ $message }}</p>@enderror
                     </div>
@@ -250,6 +305,7 @@
                 <div>
                     <label class="block text-sm font-semibold mb-1">Ажилладаг газар</label>
                     <input name="workplace" value="{{ old('workplace') }}"
+                           list="workplace-options"
                            class="w-full border rounded-md px-3 py-2">
                     @error('workplace')<p class="text-red-600 text-sm">{{ $message }}</p>@enderror
                 </div>
@@ -258,9 +314,8 @@
                     <div>
                         <label class="block text-sm font-semibold mb-1">Эрх</label>
                         <select name="role" class="w-full border rounded-md px-3 py-2">
-                            @foreach($roles as $role)
-                                @php $rn = is_string($role) ? $role : $role->name; @endphp
-                                <option value="{{ $rn }}">{{ $roleLabels[$rn] ?? $rn }}</option>
+                            @foreach($roleOptions as $rn)
+                                <option value="{{ $rn }}" @selected(old('role') === $rn)>{{ $roleLabels[$rn] ?? $rn }}</option>
                             @endforeach
                         </select>
                         @error('role')<p class="text-red-600 text-sm">{{ $message }}</p>@enderror
@@ -273,7 +328,7 @@
                 </div>
 
                 <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" @click="openCreate=false"
+                    <button type="button" @click="openCreate=false; resetCreateForm()"
                             class="px-4 py-2 rounded-md border">
                         Болих
                     </button>
@@ -293,7 +348,9 @@
 
         </div>
     </div>
+    @endif
     {{-- MODAL: Edit User --}}
+@if($canManageUsers)
 <div
     x-show="openEdit"
     x-cloak
@@ -345,24 +402,31 @@
 
                 <div>
                     <label class="block text-sm font-semibold mb-1">Ажилладаг газар</label>
-                    
                     <input name="workplace" x-model="editUser.workplace"
+                           list="workplace-options"
                            class="w-full border rounded-md px-3 py-2">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold mb-1">Шинэ нууц үг</label>
+                <input type="password" name="password" autocomplete="new-password"
+                       class="w-full border rounded-md px-3 py-2"
+                       placeholder="Хоосон бол өөрчлөгдөхгүй">
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-sm font-semibold mb-1">Эрх</label>
                     <select name="role" class="w-full border rounded-md px-3 py-2" x-model="editUser.role">
-                        @foreach($roles as $role)
-                            @php $rn = is_string($role) ? $role : $role->name; @endphp
+                        @foreach($roleOptions as $rn)
                             <option value="{{ $rn }}">{{ $roleLabels[$rn] ?? $rn }}</option>
                         @endforeach
                     </select>
                 </div>
 
                 <div class="flex items-center gap-2 pt-7">
+                    <input type="hidden" name="is_active" value="0">
                     <input type="checkbox" name="is_active" value="1"
                            class="rounded border-gray-300"
                            :checked="editUser.is_active"
@@ -382,11 +446,18 @@
         </form>
     </div>
 </div>
+@endif
 
 </div>
 
+<datalist id="workplace-options">
+    @foreach($workplaceSuggestions ?? [] as $workplace)
+        <option value="{{ $workplace }}"></option>
+    @endforeach
+</datalist>
+
 {{-- Validation error гарвал modal нээх (Alpine variable-г Blade-ээр эхлүүлэх) --}}
-@if($errors->any())
+@if($canManageUsers && $errors->any())
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // Alpine хожим ачаалж магадгүй тул бага зэрэг delay

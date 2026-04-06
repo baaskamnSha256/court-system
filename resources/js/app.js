@@ -1,6 +1,11 @@
 import Alpine from 'alpinejs'
 
 window.Alpine = Alpine
+window.formatGroupedNumber = window.formatGroupedNumber || function formatGroupedNumber(rawValue) {
+  const raw = String(rawValue || '')
+  const digits = raw.replace(/[^0-9]+/g, '').replace(/^0+(?=[0-9])/, '')
+  return digits.replace(/([0-9])(?=([0-9]{3})+$)/g, '$1,')
+}
 window.chipSelect = window.chipSelect || function chipSelect(config = {}) {
   return {
     options: Array.isArray(config.options) ? JSON.parse(JSON.stringify(config.options)) : [],

@@ -1,11 +1,18 @@
 @extends('layouts.dashboard')
 
 @section('title', 'Хянах самбар')
-@section('header', 'Хянах самбар')
 
 @section('content')
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2">@include('partials.widgets.today-hearings', ['hearingsToday' => $hearingsToday, 'today' => $today])</div>
-    <div class="lg:col-span-1 w-full">@include('partials.widgets.mini-calendar', ['today' => $today, 'hearingsCountByDay' => $hearingsCountByDay ?? [], 'dashboardUrl' => route('secretary.dashboard')])</div>
-</div>
+@include('partials.dashboards.role-hearings-dashboard', [
+    'hearingsToday' => $hearingsToday,
+    'today' => $today,
+    'hearingsCountByDay' => $hearingsCountByDay ?? [],
+    'decisionOptions' => $decisionOptions ?? [],
+    'decisionCounts' => $decisionCounts ?? [],
+    'decisionFilterBaseUrl' => route('secretary.notes.index', [
+        'hearing_date_from' => $monthStart->toDateString(),
+        'hearing_date_to' => $monthEnd->toDateString(),
+    ]),
+    'dashboardUrl' => route('secretary.dashboard'),
+])
 @endsection
