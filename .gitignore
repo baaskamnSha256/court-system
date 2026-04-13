@@ -8,8 +8,9 @@
 /vendor
 /vendor.zip
 .env
-.env.backup
+.env.backup*
 .env.production
+/storage/xyp/
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
