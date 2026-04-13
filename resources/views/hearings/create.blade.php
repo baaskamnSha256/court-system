@@ -384,10 +384,16 @@ function chipSelect(config) {
         {{-- 7) Шүүгдэгч(ид) — API хайлт popup + autosize жагсаалт --}}
         @php
             $oldDefendantNames = old('defendant_names', []);
+            $oldDefendantRegistries = old('defendant_registries', []);
             if (empty($oldDefendantNames) && is_string(old('defendants')) && trim(old('defendants')) !== '') {
                 $oldDefendantNames = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', old('defendants')))));
             }
-            $initialDefendants = collect($oldDefendantNames)->map(fn($n) => ['name' => $n, 'registry' => ''])->values();
+            $initialDefendants = collect($oldDefendantNames)->values()->map(function ($name, $index) use ($oldDefendantRegistries) {
+                return [
+                    'name' => $name,
+                    'registry' => trim((string) ($oldDefendantRegistries[$index] ?? '')),
+                ];
+            })->values();
         @endphp
         <div
             class="flex flex-wrap items-end gap-3"
@@ -454,6 +460,9 @@ function chipSelect(config) {
             </div>
             <template x-for="(d, i) in defendants" :key="'h-'+i">
                     <input type="hidden" :name="'defendant_names['+i+']'" :value="d.name">
+                </template>
+            <template x-for="(d, i) in defendants" :key="'r-'+i">
+                    <input type="hidden" :name="'defendant_registries['+i+']'" :value="d.registry || ''">
                 </template>
 
                 {{-- Popup: Регистрийн дугаараар хайлт --}}

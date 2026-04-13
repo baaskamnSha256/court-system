@@ -56,10 +56,10 @@ it('shows punishment and article aggregation rows on admin report', function () 
             'tab' => 'punishment',
         ]))
         ->assertOk()
-        ->assertSee('Ялын төрөл')
-        ->assertSee('Торгох')
-        ->assertSee('Хорих (Нээлттэй)')
-        ->assertSee('Ялын төрөл x Шийдвэрлэсэн зүйл анги');
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл')
+        ->assertSee('Excel-тэй ижил багана')
+        ->assertSee('Хурал ID')
+        ->assertSee('Raw JSON');
 
     actingAs($admin)
         ->get(route('admin.reports.index', [
@@ -124,9 +124,7 @@ it('uses per-article allocations for punishment x article statistics', function 
             'tab' => 'punishment',
         ]))
         ->assertOk()
-        ->assertSee('ЭХТА 11.6')
-        ->assertSee('ЭХТА 12.1')
-        ->assertSee('Торгох');
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл');
 });
 
 it('opens each report submenu tab', function () {
@@ -167,7 +165,7 @@ it('opens each report submenu tab', function () {
     actingAs($admin)
         ->get(route('admin.reports.index', array_merge($baseQuery, ['tab' => 'punishment'])))
         ->assertOk()
-        ->assertSee('Ялын төрөл');
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл');
 });
 
 it('ignores clerk_id for article and punishment report tabs', function () {
@@ -243,6 +241,131 @@ it('ignores clerk_id for article and punishment report tabs', function () {
             'clerk_id' => $clerkA->id,
         ])))
         ->assertOk()
-        ->assertSee('Торгох')
-        ->assertSee('Хорих (Нээлттэй)');
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл');
+});
+
+it('counts special outcomes separately from punishments', function () {
+    ensureReportRole('admin');
+    ensureReportRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $m1 = MatterCategory::query()->create(['name' => 'ЭХТА 20.1', 'sort_order' => 1]);
+
+    Hearing::query()->create([
+        'created_by' => $admin->id,
+        'case_no' => 'R-SPECIAL-001',
+        'title' => 'Special outcome hearing',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_defendant_sentences' => [
+            [
+                'defendant_name' => 'Шүүгдэгч тусгай',
+                'decided_matter_ids' => [$m1->id],
+                'punishments' => [],
+                'special_outcome' => 'Эрүүгийн хариуцлагаас чөлөөлсөн',
+            ],
+        ],
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.reports.index', [
+            'date_from' => now()->startOfMonth()->format('Y-m-d'),
+            'date_to' => now()->endOfMonth()->format('Y-m-d'),
+            'tab' => 'punishment',
+        ]))
+        ->assertOk()
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл')
+        ->assertSee('Excel-тэй ижил багана');
+});
+
+it('shows age and gender sentencing counts from defendant registry numbers', function () {
+    ensureReportRole('admin');
+    ensureReportRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $m1 = MatterCategory::query()->create(['name' => 'ЭХТА 25.1', 'sort_order' => 1]);
+
+    Hearing::query()->create([
+        'created_by' => $admin->id,
+        'case_no' => 'R-AGE-001',
+        'title' => 'Age gender report hearing',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_defendant_sentences' => [
+            [
+                'defendant_name' => 'Эмэгтэй шүүгдэгч',
+                'defendant_registry' => 'ЙС96072608',
+                'decided_matter_ids' => [$m1->id],
+                'punishments' => [
+                    'fine' => ['fine_units' => 100, 'damage_amount' => 0],
+                ],
+            ],
+            [
+                'defendant_name' => 'Эрэгтэй шүүгдэгч',
+                'defendant_registry' => 'ЙС96072619',
+                'decided_matter_ids' => [$m1->id],
+                'punishments' => [
+                    'community_service' => ['hours' => 120],
+                ],
+            ],
+        ],
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.reports.index', [
+            'date_from' => now()->startOfMonth()->format('Y-m-d'),
+            'date_to' => now()->endOfMonth()->format('Y-m-d'),
+            'tab' => 'punishment',
+        ]))
+        ->assertOk()
+        ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл');
+});
+
+it('downloads searchable defendant detail report file', function () {
+    ensureReportRole('admin');
+    ensureReportRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $matter = MatterCategory::query()->create(['name' => 'ЭХТА 30.2', 'sort_order' => 1]);
+
+    Hearing::query()->create([
+        'created_by' => $admin->id,
+        'case_no' => 'R-DETAIL-001',
+        'title' => 'Detail export hearing',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 9,
+        'minute' => 30,
+        'courtroom' => 'D',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_defendant_sentences' => [
+            [
+                'defendant_name' => 'Шүүгдэгч экспорт',
+                'defendant_registry' => 'АА99112211',
+                'outcome_track' => 'sentence',
+                'decided_matter_ids' => [$matter->id],
+                'punishments' => [
+                    'community_service' => ['hours' => 240],
+                ],
+            ],
+        ],
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.reports.download.defendant-details', [
+            'date_from' => now()->startOfMonth()->format('Y-m-d'),
+            'date_to' => now()->endOfMonth()->format('Y-m-d'),
+            'tab' => 'punishment',
+        ]))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });

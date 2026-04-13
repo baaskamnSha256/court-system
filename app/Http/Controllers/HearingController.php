@@ -104,6 +104,7 @@ class HearingController extends Controller
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
+                'defendant_registries' => array_values($data['defendant_registries'] ?? []),
                 'defendant_lawyers_text' => array_values(array_filter($data['defendant_lawyers_text'] ?? [])),
                 'victim_lawyers_text' => array_values(array_filter($data['victim_lawyers_text'] ?? [])),
                 'victim_legal_rep_lawyers_text' => array_values(array_filter($data['victim_legal_rep_lawyers_text'] ?? [])),
@@ -162,6 +163,7 @@ class HearingController extends Controller
                     : null,
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
+                'defendant_registries' => array_values($data['defendant_registries'] ?? []),
                 'defendant_lawyers_text' => array_values(array_filter($data['defendant_lawyers_text'] ?? [])),
                 'victim_lawyers_text' => array_values(array_filter($data['victim_lawyers_text'] ?? [])),
                 'victim_legal_rep_lawyers_text' => array_values(array_filter($data['victim_legal_rep_lawyers_text'] ?? [])),
@@ -261,6 +263,8 @@ class HearingController extends Controller
             'member_judge_2_id' => ['nullable', 'integer', 'exists:users,id', 'required_with:member_judge_1_id'],
             'defendant_names' => ['nullable', 'array'],
             'defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'defendant_registries' => ['nullable', 'array'],
+            'defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'defendant_names_text' => ['nullable', 'string'],
             'preventive_measure' => ['nullable', 'array'],
             'preventive_measure.*' => ['nullable', 'string', Rule::in($this->allowedPreventiveMeasures())],
@@ -283,6 +287,16 @@ class HearingController extends Controller
         if (empty($data['defendant_names']) && ! empty($data['defendant_names_text'] ?? '')) {
             $data['defendant_names'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['defendant_names_text']))));
         }
+        $rawDefendantRegistries = $data['defendant_registries'] ?? [];
+        if (! is_array($rawDefendantRegistries)) {
+            $rawDefendantRegistries = [];
+        }
+        $data['defendant_registries'] = collect($data['defendant_names'] ?? [])
+            ->values()
+            ->map(function ($_, $index) use ($rawDefendantRegistries) {
+                return mb_strtoupper(trim((string) ($rawDefendantRegistries[$index] ?? '')), 'UTF-8');
+            })
+            ->all();
         if (empty($data['defendant_lawyers_text']) && ! empty($data['defendant_lawyers_text_str'] ?? '')) {
             $data['defendant_lawyers_text'] = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $data['defendant_lawyers_text_str']))));
         }

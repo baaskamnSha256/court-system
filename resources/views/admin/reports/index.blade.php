@@ -228,7 +228,14 @@
                     <thead>
                         <tr class="bg-white border-b border-slate-200">
                             <th class="px-4 py-3 text-left font-semibold text-slate-700">Зүйл анги</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Тоо</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Нийт</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Ял оноох</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Тэнсэх</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Хэрэгсэхгүй</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Цагаатгах</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Нийтэд тустай ажил (цаг)</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Торгох нэгж</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Мөнгөн дүн (төг)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -236,10 +243,17 @@
                             <tr class="border-b border-slate-100 last:border-0">
                                 <td class="px-4 py-3 text-slate-700">{{ $row['name'] }}</td>
                                 <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['count'] }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['sentence_count'] ?? 0 }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['no_sentence_count'] ?? 0 }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['dismiss_count'] ?? 0 }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['acquit_count'] ?? 0 }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['community_hours_total'] ?? 0)) }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['fine_units_total'] ?? 0)) }}</td>
+                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['damage_amount_total'] ?? 0)) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="2" class="px-4 py-3 text-center text-slate-500">Мэдээлэлгүй</td>
+                                <td colspan="9" class="px-4 py-3 text-center text-slate-500">Мэдээлэлгүй</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -273,6 +287,10 @@
                        class="inline-flex items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 transition-colors">
                         Excel татах
                     </a>
+                    <a href="{{ route('admin.reports.download.defendant-details', $reportQuery) }}"
+                       class="inline-flex items-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors">
+                        Шүүгдэгчийн дэлгэрэнгүй файл
+                    </a>
                 </div>
             </form>
             <div class="text-xs text-slate-500">
@@ -281,64 +299,85 @@
             <div class="text-xs text-slate-500">
                 - Excel дээд тал нь {{ number_format($exportLimit ?? 0) }} мөр.
             </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                    <div class="text-sm font-semibold text-slate-800">Ялын төрөл</div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm table-auto min-w-[420px]">
-                        <thead>
-                            <tr class="bg-white border-b border-slate-200">
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700">Ял</th>
-                                <th class="px-4 py-3 text-center font-semibold text-slate-700">Тоо</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($punishmentRows as $row)
-                                <tr class="border-b border-slate-100 last:border-0">
-                                    <td class="px-4 py-3 text-slate-700">{{ $row['name'] }}</td>
-                                    <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['count'] }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="2" class="px-4 py-3 text-center text-slate-500">Мэдээлэлгүй</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+            <div class="text-xs text-slate-500">
+                - Доорх хүснэгт нь «Шүүгдэгчийн дэлгэрэнгүй файл» Excel-ийн A–T баганатай ижил нэр, ижил дараалалтай.
             </div>
-            <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                    <div class="text-sm font-semibold text-slate-800">Ялын төрөл x Шийдвэрлэсэн зүйл анги</div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm table-auto min-w-[640px]">
-                        <thead>
-                            <tr class="bg-white border-b border-slate-200">
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700">Ялын төрөл</th>
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700">Зүйл анги</th>
-                                <th class="px-4 py-3 text-center font-semibold text-slate-700">Тоо</th>
+        </div>
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="text-xs text-slate-500 mb-1">Шүүгдэгчийн мөр</div>
+                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($defendantDetailRows ?? [])->count()) }}</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="text-xs text-slate-500 mb-1">Ялын төрлийн ангилал</div>
+                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($punishmentRows ?? [])->count()) }}</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="text-xs text-slate-500 mb-1">Тусгай шийдвэрийн ангилал</div>
+                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($specialOutcomeRows ?? [])->count()) }}</div>
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                <div class="text-sm font-semibold text-slate-800">Шүүгдэгчийн дэлгэрэнгүй (Excel-тэй ижил багана)</div>
+            </div>
+            <div class="overflow-x-auto">
+                @php
+                    $detailCols = $defendantDetailColumns ?? [];
+                    $detailColCount = max(count($detailCols), 1);
+                @endphp
+                <table class="w-full text-sm table-auto min-w-[2200px]">
+                    <thead>
+                        <tr class="bg-white border-b border-slate-200">
+                            @foreach($detailCols as $col)
+                                @php
+                                    $ck = $col['key'];
+                                    $thAlign = in_array($ck, ['community_hours_total', 'fine_units_total', 'damage_amount_total', 'hearing_id'], true)
+                                        ? 'text-center'
+                                        : 'text-left';
+                                @endphp
+                                <th class="px-3 py-3 {{ $thAlign }} font-semibold text-slate-700 whitespace-nowrap">{{ $col['label'] }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($defendantDetailRows ?? [] as $row)
+                            <tr class="border-b border-slate-100 last:border-0 align-top">
+                                @foreach($detailCols as $col)
+                                    @php
+                                        $key = $col['key'];
+                                        $cell = $row[$key] ?? '';
+                                        $isNumericTotal = in_array($key, ['community_hours_total', 'fine_units_total', 'damage_amount_total'], true);
+                                    @endphp
+                                    @if($key === 'raw_sentence_json')
+                                        <td class="px-3 py-3 text-slate-700 max-w-[min(28rem,90vw)]">
+                                            @if($cell !== '')
+                                                <details class="text-xs">
+                                                    <summary class="cursor-pointer text-blue-700 hover:text-blue-900 font-medium select-none">Нээх</summary>
+                                                    <pre class="mt-2 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 text-[11px] leading-snug whitespace-pre-wrap break-words">{{ $cell }}</pre>
+                                                </details>
+                                            @else
+                                                <span class="text-slate-500">—</span>
+                                            @endif
+                                        </td>
+                                    @elseif($isNumericTotal)
+                                        <td class="px-3 py-3 text-center text-slate-700 tabular-nums whitespace-nowrap">{{ number_format((int) $cell) }}</td>
+                                    @elseif($key === 'hearing_id')
+                                        <td class="px-3 py-3 text-center text-slate-700 tabular-nums whitespace-nowrap">{{ (int) $cell ?: '—' }}</td>
+                                    @else
+                                        <td class="px-3 py-3 text-slate-700 min-w-[100px] max-w-xs whitespace-normal break-words @if(in_array($key, ['title', 'decision_status', 'defendant_name', 'special_outcome', 'termination_note', 'decided_matter', 'punishment_types', 'allocations'], true)) text-xs @endif">
+                                            {{ ($cell === '' || $cell === null) ? '—' : $cell }}
+                                        </td>
+                                    @endif
+                                @endforeach
                             </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($crossRows as $row)
-                                <tr class="border-b border-slate-100 last:border-0">
-                                    <td class="px-4 py-3 text-slate-700">{{ $row['punishment'] }}</td>
-                                    <td class="px-4 py-3 text-slate-700">{{ $row['article'] }}</td>
-                                    <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['count'] }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="3" class="px-4 py-3 text-center text-slate-500">Мэдээлэлгүй</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                        @empty
+                            <tr>
+                                <td colspan="{{ $detailColCount }}" class="px-4 py-6 text-center text-slate-500">Мэдээлэлгүй</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
     @endif

@@ -27,6 +27,7 @@ class Hearing extends Model
         'prosecutor_id',
         'prosecutor_ids',
         'defendant_names',
+        'defendant_registries',
         'defendant_lawyers_text',
         'victim_lawyers_text',
         'victim_legal_rep_lawyers_text',
@@ -65,6 +66,7 @@ class Hearing extends Model
 
     protected $casts = [
         'defendant_names' => 'array',
+        'defendant_registries' => 'array',
         'defendant_lawyers_text' => 'array',
         'victim_lawyers_text' => 'array',
         'victim_legal_rep_lawyers_text' => 'array',

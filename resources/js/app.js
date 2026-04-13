@@ -127,4 +127,81 @@ document.addEventListener(
   },
   true,
 )
+
+Alpine.data('notesHandoverRow', (cfg) => ({
+  hearingId: cfg.hearingId,
+  formId: cfg.formId,
+  openModal: false,
+  modalGeneration: 0,
+  savedNotesHandoverText: cfg.savedNotesHandoverText ?? '',
+  savedDecisionStatus: cfg.savedDecisionStatus ?? '',
+  savedClerkId: cfg.savedClerkId ?? '',
+  savedNotesHandoverIssued: !!cfg.savedNotesHandoverIssued,
+  savedDefendants: Array.isArray(cfg.savedDefendants) ? cfg.savedDefendants : [],
+  notesHandoverText: cfg.savedNotesHandoverText ?? '',
+  initialNotesHandoverText: cfg.savedNotesHandoverText ?? '',
+  decisionStatus: cfg.savedDecisionStatus ?? '',
+  formatGroupedValue(rawValue) {
+    if (window.formatGroupedNumber) {
+      return window.formatGroupedNumber(rawValue)
+    }
+    const raw = String(rawValue || '')
+    const digits = raw.replace(/[^0-9]+/g, '').replace(/^0+(?=[0-9])/, '')
+    return digits.replace(/([0-9])(?=([0-9]{3})+$)/g, '$1,')
+  },
+  formatGroupedInput(event) {
+    const input = event?.target
+    if (!input) {
+      return
+    }
+    input.value = this.formatGroupedValue(input.value)
+  },
+  syncFormControlsFromSaved() {
+    const form = document.getElementById(this.formId)
+    if (!form) {
+      return
+    }
+    const clerk = form.querySelector('select[name="clerk_id"]')
+    if (clerk) {
+      clerk.value = this.savedClerkId ? String(this.savedClerkId) : ''
+    }
+    const issued = form.querySelector('input[name="notes_handover_issued"]')
+    if (issued) {
+      issued.checked = this.savedNotesHandoverIssued
+    }
+  },
+  broadcastModalReset() {
+    window.dispatchEvent(
+      new CustomEvent('notes-handover-modal-open', {
+        detail: {
+          hearingId: this.hearingId,
+          modalGeneration: this.modalGeneration,
+          defendants: this.savedDefendants,
+        },
+      }),
+    )
+  },
+  openEditModal() {
+    this.notesHandoverText = this.savedNotesHandoverText
+    this.initialNotesHandoverText = this.savedNotesHandoverText
+    this.decisionStatus = this.savedDecisionStatus
+    this.modalGeneration += 1
+    this.openModal = true
+    this.$nextTick(() => {
+      this.syncFormControlsFromSaved()
+      this.broadcastModalReset()
+    })
+  },
+  cancel() {
+    this.openModal = false
+    this.notesHandoverText = this.savedNotesHandoverText
+    this.initialNotesHandoverText = this.savedNotesHandoverText
+    this.decisionStatus = this.savedDecisionStatus
+    this.$nextTick(() => {
+      this.syncFormControlsFromSaved()
+      this.broadcastModalReset()
+    })
+  },
+}))
+
 Alpine.start()

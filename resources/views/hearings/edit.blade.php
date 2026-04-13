@@ -98,12 +98,18 @@
         $m1Id = old('member_judge_1_id', $m1);
         $m2Id = old('member_judge_2_id', $m2);
         $join = fn($arr) => is_array($arr) ? implode("\n", $arr) : (string)($arr ?? '');
-        $editDefendantNames = old('defendant_names', $hearing->defendant_names ?? []);
+    $editDefendantNames = old('defendant_names', $hearing->defendant_names ?? []);
+    $editDefendantRegistries = old('defendant_registries', $hearing->defendant_registries ?? []);
         if (empty($editDefendantNames) && (old('defendants') || $hearing->defendants)) {
             $raw = old('defendants', $hearing->defendants);
             $editDefendantNames = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $raw))));
         }
-        $initialDefendantsEdit = collect($editDefendantNames)->map(fn($n) => ['name' => $n, 'registry' => ''])->values();
+        $initialDefendantsEdit = collect($editDefendantNames)->values()->map(function ($name, $index) use ($editDefendantRegistries) {
+            return [
+                'name' => $name,
+                'registry' => trim((string) ($editDefendantRegistries[$index] ?? '')),
+            ];
+        })->values();
     @endphp
 
     <form method="POST" action="{{ $formAction }}" class="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
@@ -275,6 +281,9 @@
                 </div>
                 <template x-for="(d, i) in defendants" :key="'h-'+i">
                     <input type="hidden" :name="'defendant_names['+i+']'" :value="d.name">
+                </template>
+                <template x-for="(d, i) in defendants" :key="'r-'+i">
+                    <input type="hidden" :name="'defendant_registries['+i+']'" :value="d.registry || ''">
                 </template>
 
                 <div x-show="openModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @keydown.escape.window="openModal = false">

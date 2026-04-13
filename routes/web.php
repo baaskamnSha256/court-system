@@ -100,6 +100,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::get('/settings/reports', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reports.index');
         Route::get('/settings/reports/excel', [\App\Http\Controllers\Admin\ReportController::class, 'download'])->name('reports.download');
+        Route::get('/settings/reports/excel-defendant-details', [\App\Http\Controllers\Admin\ReportController::class, 'downloadDefendantDetails'])->name('reports.download.defendant-details');
         Route::get('/settings/matter-categories', [MatterCategoriesController::class, 'index'])->name('matter-categories.index');
         Route::post('/settings/matter-categories', [MatterCategoriesController::class, 'store'])->name('matter-categories.store');
         Route::delete('/settings/matter-categories/{matterCategory}', [MatterCategoriesController::class, 'destroy'])->name('matter-categories.destroy');

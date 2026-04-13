@@ -187,6 +187,16 @@ class HearingsController extends Controller
                 array_map('trim', preg_split('/[\n,]+/', $request->input('defendants')))
             ));
         }
+        $rawDefendantRegistries = $request->input('defendant_registries', []);
+        if (! is_array($rawDefendantRegistries)) {
+            $rawDefendantRegistries = [];
+        }
+        $data['defendant_registries'] = collect($data['defendant_names'] ?? [])
+            ->values()
+            ->map(function ($_, $index) use ($rawDefendantRegistries) {
+                return mb_strtoupper(trim((string) ($rawDefendantRegistries[$index] ?? '')), 'UTF-8');
+            })
+            ->all();
         if (empty($data['defendant_lawyers_text']) && $request->has('defendant_lawyers')) {
             $data['defendant_lawyers_text'] = array_values(array_filter((array) $request->input('defendant_lawyers')));
         }
@@ -310,6 +320,8 @@ class HearingsController extends Controller
             // 2) Шүүгдэгч (multi, гараас) — array эсвэл defendants текстээр
             'defendant_names' => ['required', 'array', 'min:1'],
             'defendant_names.*' => ['required', 'string', 'max:255'],
+            'defendant_registries' => ['nullable', 'array'],
+            'defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'defendants' => ['nullable', 'string'],
 
             'victim_names' => ['nullable', 'array'],
@@ -441,6 +453,7 @@ class HearingsController extends Controller
                 'prosecutor_ids' => $prosecutorIds,
 
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
+                'defendant_registries' => array_values($data['defendant_registries'] ?? []),
 
                 'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
                 'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),
@@ -502,6 +515,8 @@ class HearingsController extends Controller
 
             'defendant_names' => ['required', 'array', 'min:1'],
             'defendant_names.*' => ['required', 'string', 'max:255'],
+            'defendant_registries' => ['nullable', 'array'],
+            'defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'defendants' => ['nullable', 'string'],
 
             'victim_names' => ['nullable', 'array'],
@@ -624,6 +639,7 @@ class HearingsController extends Controller
                 'prosecutor_ids' => $prosecutorIds,
 
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
+                'defendant_registries' => array_values($data['defendant_registries'] ?? []),
 
                 'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
                 'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),
