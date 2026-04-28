@@ -170,6 +170,14 @@ trait NormalizesNotesDefendantSentences
     {
         $punishmentsRaw = $sentence['punishments'] ?? null;
         if (is_array($punishmentsRaw) && $punishmentsRaw !== []) {
+            $damageAmount = $this->parseGroupedNumber($punishmentsRaw['damage_amount'] ?? '');
+            $compensatedDamageAmount = $this->parseGroupedNumber($punishmentsRaw['compensated_damage_amount'] ?? '');
+            $other = trim((string) ($punishmentsRaw['other'] ?? ''));
+            $assetConfiscation = ! empty($punishmentsRaw['asset_confiscation'] ?? null);
+            $destroyEvidence = ! empty($punishmentsRaw['destroy_evidence'] ?? null);
+            if ($damageAmount > 0 || $compensatedDamageAmount > 0 || $other !== '' || $assetConfiscation || $destroyEvidence) {
+                return true;
+            }
             foreach ($punishmentsRaw as $block) {
                 if (is_array($block) && ! empty($block['enabled'])) {
                     return true;
@@ -303,10 +311,32 @@ trait NormalizesNotesDefendantSentences
     {
         $punishments = [];
 
+        $damageAmount = $this->parseGroupedNumber($punishmentsRaw['damage_amount'] ?? '');
+        if ($damageAmount > 0) {
+            $punishments['damage_amount'] = $damageAmount;
+        }
+
+        $compensatedDamageAmount = $this->parseGroupedNumber($punishmentsRaw['compensated_damage_amount'] ?? '');
+        if ($compensatedDamageAmount > 0) {
+            $punishments['compensated_damage_amount'] = $compensatedDamageAmount;
+        }
+
+        if (! empty($punishmentsRaw['asset_confiscation'] ?? null)) {
+            $punishments['asset_confiscation'] = true;
+        }
+
+        if (! empty($punishmentsRaw['destroy_evidence'] ?? null)) {
+            $punishments['destroy_evidence'] = true;
+        }
+
+        $other = trim((string) ($punishmentsRaw['other'] ?? ''));
+        if ($other !== '') {
+            $punishments['other'] = $other;
+        }
+
         if ((! $requireEnabledFlag || ! empty($punishmentsRaw['fine']['enabled'] ?? null)) && is_array($punishmentsRaw['fine'] ?? null)) {
             $punishments['fine'] = [
                 'fine_units' => $this->parseGroupedNumber($punishmentsRaw['fine']['fine_units'] ?? ''),
-                'damage_amount' => $this->parseGroupedNumber($punishmentsRaw['fine']['damage_amount'] ?? ''),
             ];
         }
         if ((! $requireEnabledFlag || ! empty($punishmentsRaw['community_service']['enabled'] ?? null)) && is_array($punishmentsRaw['community_service'] ?? null)) {

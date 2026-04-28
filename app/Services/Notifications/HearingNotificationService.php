@@ -2,16 +2,15 @@
 
 namespace App\Services\Notifications;
 
+use App\Jobs\SendEmongoliaNotificationJob;
 use App\Models\Hearing;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class HearingNotificationService
 {
     public function __construct(
-        private readonly HearingNotificationPayloadBuilder $payloadBuilder,
-        private readonly NotificationTokenService $tokenService
+        private readonly HearingNotificationPayloadBuilder $payloadBuilder
     ) {}
 
     public function send(Hearing $hearing, string $action = 'created'): void
@@ -23,48 +22,63 @@ class HearingNotificationService
 
         $notifyUrl = (string) ($cfg['notify_url'] ?? '');
         $accessToken = (string) ($cfg['access_token'] ?? '');
-        $timeout = (int) ($cfg['timeout'] ?? 15);
 
         if ($notifyUrl === '' || $accessToken === '') {
-            Log::warning('Notification API тохиргоо дутуу тул мэдэгдэл алгасав.');
+            Log::warning('Notification API тохиргоо дутуу тул мэдэгдэл алгасав.', [
+                'hearing_id' => $hearing->id,
+                'action' => $action,
+            ]);
 
             return;
         }
 
         try {
-            $oneTimeToken = $this->tokenService->getOneTimeToken();
             $payload = $this->payloadBuilder->build($hearing, $action);
-
-            foreach ($payload['recipients'] as $recipient) {
-                if (empty($recipient['regnum']) || empty($recipient['civil_id'])) {
-                    continue;
-                }
-
-                $body = [
-                    'title' => $payload['title'],
-                    'body' => [
-                        'Mail' => $payload['message'],
-                        'Messenger' => $payload['message'],
-                        'Notification' => $payload['message'],
-                    ],
-                    'regnum' => $recipient['regnum'],
-                    'civilId' => $recipient['civil_id'],
-                ];
-
-                Http::timeout($timeout)
-                    ->asJson()
-                    ->withHeaders([
-                        'Accesstoken' => $accessToken,
-                        'Authorization' => 'Bearer '.$oneTimeToken,
-                    ])
-                    ->post($notifyUrl, $body);
-            }
         } catch (Throwable $e) {
-            Log::warning('Hearing notification илгээхэд алдаа гарлаа.', [
+            Log::warning('Hearing notification payload бүрдүүлэхэд алдаа гарлаа.', [
                 'hearing_id' => $hearing->id,
                 'action' => $action,
                 'error' => $e->getMessage(),
             ]);
+
+            return;
+        }
+
+        $connection = $cfg['queue_connection'] ?? null;
+        $queue = $cfg['queue_name'] ?? null;
+
+        foreach ($payload['recipients'] as $recipient) {
+            $regnum = $recipient['regnum'] ?? null;
+            $civilId = $recipient['civil_id'] ?? null;
+
+            if (empty($regnum) && empty($civilId)) {
+                continue;
+            }
+
+            $job = SendEmongoliaNotificationJob::dispatch(
+                $payload['title'],
+                [
+                    'Mail' => $payload['message'],
+                    'Messenger' => $payload['message'],
+                    'Notification' => $payload['message'],
+                ],
+                $regnum,
+                $civilId,
+                [
+                    'hearing_id' => $hearing->id,
+                    'action' => $action,
+                    'role' => $recipient['role'] ?? null,
+                    'name' => $recipient['name'] ?? null,
+                ]
+            );
+
+            if (! empty($connection)) {
+                $job->onConnection($connection);
+            }
+
+            if (! empty($queue)) {
+                $job->onQueue($queue);
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+
 @extends('layouts.dashboard')
 @section('header', $headerTitle ?? 'Тэмдэглэл хүлээлцэх')
 
@@ -152,6 +153,7 @@
                                 'Шийдвэрлэсэн' => 'bg-emerald-50/70',
                                 'Хойшилсон' => 'bg-amber-50/70',
                                 'Завсарласан' => 'bg-sky-50/70',
+                                'Түдгэлзүүлсэн' => 'bg-orange-50/70',
                                 'Прокурорт буцаасан' => 'bg-rose-50/70',
                                 'Яллагдагчийг шүүхэд шилжүүлсэн' => 'bg-indigo-50/70',
                                 '60 хүртэлх хоногоор хойшлуулсан' => 'bg-violet-50/70',
@@ -162,6 +164,7 @@
                                 'Шийдвэрлэсэн' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
                                 'Хойшилсон' => 'bg-amber-100 text-amber-800 border-amber-200',
                                 'Завсарласан' => 'bg-sky-100 text-sky-800 border-sky-200',
+                                'Түдгэлзүүлсэн' => 'bg-orange-100 text-orange-800 border-orange-200',
                                 'Прокурорт буцаасан' => 'bg-rose-100 text-rose-800 border-rose-200',
                                 'Яллагдагчийг шүүхэд шилжүүлсэн' => 'bg-indigo-100 text-indigo-800 border-indigo-200',
                                 '60 хүртэлх хоногоор хойшлуулсан' => 'bg-violet-100 text-violet-800 border-violet-200',
@@ -405,6 +408,7 @@
                                         'Шийдвэрлэсэн' => 'Шийдвэрлэсэн',
                                         'Хойшилсон' => 'Хойшилсон',
                                         'Завсарласан' => 'Завсарласан',
+                                        'Түдгэлзүүлсэн' => 'Түдгэлзүүлсэн',
                                         'Прокурорт буцаасан' => 'Прокурорт буцаасан',
                                         'Яллагдагчийг шүүхэд шилжүүлсэн' => 'Яллагдагчийг шүүхэд шилжүүлсэн',
                                         '60 хүртэлх хоногоор хойшлуулсан' => '60 хүртэлх хоногоор хойшлуулсан',
@@ -481,12 +485,12 @@
                                 </div>
                                 <template x-teleport="body">
                                     <div x-show="openModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/65 backdrop-blur-[1px] p-4">
-                                        <div @click.outside="cancel()" class="w-full max-w-4xl rounded-xl bg-white shadow-2xl max-h-[85vh] overflow-hidden">
+                                        <div @click.outside="cancel()" class="flex w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl max-h-[85vh] overflow-hidden">
                                             <div class="grid grid-cols-[1fr_auto_1fr] items-center border-b border-slate-200 px-4 py-3">
                                                 <h3 class="col-start-2 text-center text-sm font-semibold text-slate-800">Шүүх хуралдааны тойм засварлах</h3>
                                                 <button type="button" @click="cancel()" class="col-start-3 justify-self-end rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">Хаах</button>
                                             </div>
-                                            <div class="overflow-y-auto px-4 py-3 max-h-[calc(85vh-8.5rem)]">
+                                            <div class="flex-1 overflow-y-auto px-4 py-3">
                                                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="md:col-span-2">
                                                 <label class="mb-1 block text-center text-xs font-medium text-slate-600">Шүүх хуралдааны тойм</label>
@@ -503,7 +507,7 @@
                                             </div>
                                             @if(!$isClerkUser)
                                                 <div>
-                                                    <label class="mb-1 block text-center text-xs font-medium text-slate-600">ШХНБ дарга</label>
+                                                    <label class="mb-1 block text-center text-xs font-medium text-slate-600">ШХНБДарга</label>
                                                     <select name="clerk_id" form="{{ $formId }}" required class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-center text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500">
                                                         <option value="">— Сонгоогүй —</option>
                                                         @foreach($clerks as $clerk)
@@ -512,8 +516,8 @@
                                                     </select>
                                                 </div>
                                             @endif
-                                            <div class="md:col-span-2" x-show="decisionStatus === 'Шийдвэрлэсэн'">
-                                                <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                                            <div class="md:col-span-2">
+                                                <div x-show="decisionStatus === 'Шийдвэрлэсэн'" x-cloak class="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                                                     <h4 class="mb-2 text-xs font-semibold text-slate-700">Шүүгдэгч тус бүрийн шийтгэлийн мэдээлэл</h4>
                                                     <div class="space-y-3">
                                                         @foreach($defendantNamesList as $defendantIndex => $defendantName)
@@ -721,9 +725,14 @@
                                                                         el.value = value == null ? '' : String(value);
                                                                         el.dispatchEvent(new Event('input', { bubbles: true }));
                                                                     };
+                                                                    const setTextareaValue = (fieldName, value) => {
+                                                                        const el = $el.querySelector(`textarea[name='${fieldName}']`);
+                                                                        if (!el) return;
+                                                                        el.value = value == null ? '' : String(value);
+                                                                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                                                                    };
                                                                     setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][enabled]", !!(punishments.fine && Object.keys(punishments.fine).length));
                                                                     setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][fine_units]", punishments.fine?.fine_units ?? '');
-                                                                    setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][damage_amount]", punishments.fine?.damage_amount ?? '');
                                                                     setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][community_service][enabled]", !!(punishments.community_service && Object.keys(punishments.community_service).length));
                                                                     setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][community_service][hours]", punishments.community_service?.hours ?? '');
                                                                     setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][travel_restriction][enabled]", !!(punishments.travel_restriction && Object.keys(punishments.travel_restriction).length));
@@ -744,6 +753,14 @@
                                                                     setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][enabled]", !!(punishments.rights_ban_driving && Object.keys(punishments.rights_ban_driving).length));
                                                                     setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][years]", punishments.rights_ban_driving?.years ?? '');
                                                                     setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][months]", punishments.rights_ban_driving?.months ?? '');
+                                                                    setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][damage_amount]", punishments.damage_amount ?? punishments.fine?.damage_amount ?? '');
+                                                                    setValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][compensated_damage_amount]", punishments.compensated_damage_amount ?? '');
+                                                                    setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][asset_confiscation]", !!punishments.asset_confiscation);
+                                                                    setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][destroy_evidence]", !!punishments.destroy_evidence);
+                                                                    setTextareaValue("notes_defendant_sentences[{{ $defendantIndex }}][punishments][other]", punishments.other ?? '');
+                                                                    setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][damage_amount_enabled]", !!(punishments.damage_amount || punishments.fine?.damage_amount));
+                                                                    setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][compensated_damage_amount_enabled]", !!punishments.compensated_damage_amount);
+                                                                    setCheckbox("notes_defendant_sentences[{{ $defendantIndex }}][punishments][other_enabled]", !!(punishments.other && String(punishments.other).trim() !== ''));
                                                                     this.matterQuery = '';
                                                                     this.matterOpen = false;
                                                                     this.matterActiveIndex = -1;
@@ -846,7 +863,6 @@
                                                                     $punishmentsPrefill = is_array($sentencePrefill['punishments'] ?? null) ? $sentencePrefill['punishments'] : [];
                                                                     $fineEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.fine.enabled", ! empty($punishmentsPrefill['fine'] ?? []));
                                                                     $fineUnitsValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.fine.fine_units", $punishmentsPrefill['fine']['fine_units'] ?? '');
-                                                                    $damageAmountValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.fine.damage_amount", $punishmentsPrefill['fine']['damage_amount'] ?? '');
                                                                     $communityEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.community_service.enabled", ! empty($punishmentsPrefill['community_service'] ?? []));
                                                                     $communityHoursValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.community_service.hours", $punishmentsPrefill['community_service']['hours'] ?? '');
                                                                     $travelEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.travel_restriction.enabled", ! empty($punishmentsPrefill['travel_restriction'] ?? []));
@@ -867,46 +883,53 @@
                                                                     $rightsDriveEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.rights_ban_driving.enabled", ! empty($punishmentsPrefill['rights_ban_driving'] ?? []));
                                                                     $rightsDriveYearsValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.rights_ban_driving.years", $punishmentsPrefill['rights_ban_driving']['years'] ?? '');
                                                                     $rightsDriveMonthsValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.rights_ban_driving.months", $punishmentsPrefill['rights_ban_driving']['months'] ?? '');
+                                                                    $damageAmountValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.damage_amount", $punishmentsPrefill['damage_amount'] ?? ($punishmentsPrefill['fine']['damage_amount'] ?? ''));
+                                                                    $compensatedDamageAmountValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.compensated_damage_amount", $punishmentsPrefill['compensated_damage_amount'] ?? '');
+                                                                    $assetConfiscationValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.asset_confiscation", (bool) ($punishmentsPrefill['asset_confiscation'] ?? false));
+                                                                    $destroyEvidenceValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.destroy_evidence", (bool) ($punishmentsPrefill['destroy_evidence'] ?? false));
+                                                                    $otherPunishmentValue = $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.other", $punishmentsPrefill['other'] ?? '');
+                                                                    $damageAmountEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.damage_amount_enabled", trim((string) $damageAmountValue) !== '');
+                                                                    $compensatedDamageAmountEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.compensated_damage_amount_enabled", trim((string) $compensatedDamageAmountValue) !== '');
+                                                                    $otherPunishmentEnabledValue = (bool) $oldForCurrentHearing("notes_defendant_sentences.{$defendantIndex}.punishments.other_enabled", trim((string) $otherPunishmentValue) !== '');
                                                                 @endphp
                                                                 <fieldset x-show="decidedMatterId && decisionTab === 'sentence'" x-cloak class="mt-2 rounded border border-blue-200 bg-white p-2" :disabled="!decidedMatterId" :class="!decidedMatterId ? 'opacity-60' : ''"
-                                                                          x-data="{ fineEnabled: @js($fineEnabledValue), communityEnabled: @js($communityEnabledValue), travelEnabled: @js($travelEnabledValue), imprOpenEnabled: @js($imprOpenEnabledValue), imprClosedEnabled: @js($imprClosedEnabledValue), rightsPublicEnabled: @js($rightsPublicEnabledValue), rightsProEnabled: @js($rightsProEnabledValue), rightsDriveEnabled: @js($rightsDriveEnabledValue) }">
+                                                                          x-data="{ fineEnabled: @js($fineEnabledValue), communityEnabled: @js($communityEnabledValue), travelEnabled: @js($travelEnabledValue), imprOpenEnabled: @js($imprOpenEnabledValue), imprClosedEnabled: @js($imprClosedEnabledValue), rightsPublicEnabled: @js($rightsPublicEnabledValue), rightsProEnabled: @js($rightsProEnabledValue), rightsDriveEnabled: @js($rightsDriveEnabledValue), damageAmountEnabled: @js($damageAmountEnabledValue), compensatedDamageAmountEnabled: @js($compensatedDamageAmountEnabledValue), otherPunishmentEnabled: @js($otherPunishmentEnabledValue) }">
                                                                     <div class="mb-2 text-xs font-semibold text-blue-800"></div>
                                                                     <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
                                                                         <div class="rounded border border-slate-200 p-2">
-                                                                            <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700">
+                                                                            <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                <span class="truncate">Торгох</span>
                                                                                 <span class="relative inline-flex h-5 w-9 items-center">
                                                                                     <input type="checkbox" x-model="fineEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
                                                                                     <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
                                                                                     <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
                                                                                 </span>
-                                                                                Торгох
                                                                             </label>
-                                                                            <div x-show="fineEnabled" x-cloak class="mt-2 grid grid-cols-2 gap-2">
+                                                                            <div x-show="fineEnabled" x-cloak class="mt-2">
                                                                                 <input type="text" value="{{ $fineUnitsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][fine_units]" @input="formatGroupedInput($event)" placeholder="Торгох нэгж" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs">
-                                                                                <input type="text" value="{{ $damageAmountValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][fine][damage_amount]" @input="formatGroupedInput($event)" placeholder="Хохирлын дүн" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs">
                                                                             </div>
                                                                         </div>
                                                                         <div class="rounded border border-slate-200 p-2">
-                                                                            <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700">
+                                                                            <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                <span class="truncate">Нийтэд тустай ажил</span>
                                                                                 <span class="relative inline-flex h-5 w-9 items-center">
                                                                                     <input type="checkbox" x-model="communityEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][community_service][enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
                                                                                     <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
                                                                                     <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
                                                                                 </span>
-                                                                                Нийтэд тустай ажил
                                                                             </label>
                                                                             <div x-show="communityEnabled" x-cloak class="mt-2">
                                                                                 <input type="number" min="0" max="720" value="{{ $communityHoursValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][community_service][hours]" placeholder="Цаг (max 720)" form="{{ $formId }}" class="w-full rounded border border-slate-300 px-2 py-1 text-xs">
                                                                             </div>
                                                                         </div>
                                                                         <div class="rounded border border-slate-200 p-2">
-                                                                            <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700">
+                                                                            <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                <span class="truncate">Зорчих эрх</span>
                                                                                 <span class="relative inline-flex h-5 w-9 items-center">
                                                                                     <input type="checkbox" x-model="travelEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][travel_restriction][enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
                                                                                     <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
                                                                                     <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
                                                                                 </span>
-                                                                                Зорчих эрх
                                                                             </label>
                                                                             <div x-show="travelEnabled" x-cloak class="mt-2 grid grid-cols-2 gap-2">
                                                                                 <input type="number" min="0" value="{{ $travelYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][travel_restriction][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs">
@@ -925,9 +948,50 @@
                                                                         <div class="rounded border border-slate-200 p-2 md:col-span-2">
                                                                             <div class="text-xs font-medium text-slate-700">Эрх хасах</div>
                                                                             <div class="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
-                                                                                <div><label class="inline-flex items-center gap-2 text-xs text-slate-700"><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsPublicEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span>Нийтийн алба</label><div x-show="rightsPublicEnabled" x-cloak class="mt-1 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsPublicYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsPublicMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
-                                                                                <div><label class="inline-flex items-center gap-2 text-xs text-slate-700"><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsProEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span>Мэргэжлийн эрх</label><div x-show="rightsProEnabled" x-cloak class="mt-1 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsProYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsProMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
-                                                                                <div><label class="inline-flex items-center gap-2 text-xs text-slate-700"><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsDriveEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span>Жолоодох эрх</label><div x-show="rightsDriveEnabled" x-cloak class="mt-1 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsDriveYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsDriveMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
+                                                                                <div class="rounded border border-slate-200 p-2"><label class="inline-flex w-full items-center justify-between gap-2 text-xs text-slate-700"><span class="truncate">Нийтийн алба</span><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsPublicEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span></label><div x-show="rightsPublicEnabled" x-cloak class="mt-2 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsPublicYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsPublicMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_public_service][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
+                                                                                <div class="rounded border border-slate-200 p-2"><label class="inline-flex w-full items-center justify-between gap-2 text-xs text-slate-700"><span class="truncate">Мэргэжлийн эрх</span><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsProEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span></label><div x-show="rightsProEnabled" x-cloak class="mt-2 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsProYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsProMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_professional_activity][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
+                                                                                <div class="rounded border border-slate-200 p-2"><label class="inline-flex w-full items-center justify-between gap-2 text-xs text-slate-700"><span class="truncate">Жолоодох эрх</span><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" x-model="rightsDriveEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][enabled]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span></label><div x-show="rightsDriveEnabled" x-cloak class="mt-2 grid grid-cols-2 gap-1"><input type="number" min="0" value="{{ $rightsDriveYearsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][years]" placeholder="Жил" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"><input type="number" min="0" max="12" value="{{ $rightsDriveMonthsValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][rights_ban_driving][months]" placeholder="Сар" form="{{ $formId }}" class="rounded border border-slate-300 px-2 py-1 text-xs"></div></div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="rounded border border-slate-200 p-2 md:col-span-2">
+                                                                            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                                                <div class="flex h-full flex-col rounded border border-slate-200 p-2">
+                                                                                    <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                        <span class="truncate">Хохирлын дүн</span>
+                                                                                        <span class="relative inline-flex h-5 w-9 items-center">
+                                                                                            <input type="checkbox" x-model="damageAmountEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][damage_amount_enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
+                                                                                            <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
+                                                                                            <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
+                                                                                        </span>
+                                                                                    </label>
+                                                                                    <input x-show="damageAmountEnabled" x-cloak :disabled="!damageAmountEnabled" type="text" value="{{ $damageAmountValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][damage_amount]" @input="formatGroupedInput($event)" placeholder="Хохирлын дүн" form="{{ $formId }}" class="mt-2 w-full rounded border border-slate-300 px-2 py-1 text-xs">
+                                                                                </div>
+                                                                                <div class="flex h-full flex-col rounded border border-slate-200 p-2">
+                                                                                    <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                        <span class="truncate">Шүүхийн шатанд нөхөн төлүүлсэн хохирлын хэмжээ</span>
+                                                                                        <span class="relative inline-flex h-5 w-9 items-center">
+                                                                                            <input type="checkbox" x-model="compensatedDamageAmountEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][compensated_damage_amount_enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
+                                                                                            <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
+                                                                                            <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
+                                                                                        </span>
+                                                                                    </label>
+                                                                                    <input x-show="compensatedDamageAmountEnabled" x-cloak :disabled="!compensatedDamageAmountEnabled" type="text" value="{{ $compensatedDamageAmountValue }}" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][compensated_damage_amount]" @input="formatGroupedInput($event)" placeholder="Шүүхийн шатанд нөхөн төлүүлсэн хохирлын хэмжээ" form="{{ $formId }}" class="mt-2 w-full rounded border border-slate-300 px-2 py-1 text-xs">
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                                                <div class="rounded border border-slate-200 p-2"><label class="inline-flex w-full items-center justify-between gap-2 text-xs text-slate-700"><span class="truncate">Хөрөнгө орлого хураах</span><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" @checked($assetConfiscationValue) name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][asset_confiscation]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span></label></div>
+                                                                                <div class="rounded border border-slate-200 p-2"><label class="inline-flex w-full items-center justify-between gap-2 text-xs text-slate-700"><span class="truncate">Эд мөрийн баримт устгуулах</span><span class="relative inline-flex h-5 w-9 items-center"><input type="checkbox" @checked($destroyEvidenceValue) name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][destroy_evidence]" value="1" form="{{ $formId }}" class="peer sr-only"><span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span><span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span></span></label></div>
+                                                                            </div>
+                                                                            <div class="mt-2 rounded border border-slate-200 p-2">
+                                                                                <label class="inline-flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-700">
+                                                                                    <span>Бусад</span>
+                                                                                    <span class="relative inline-flex h-5 w-9 items-center">
+                                                                                        <input type="checkbox" x-model="otherPunishmentEnabled" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][other_enabled]" value="1" form="{{ $formId }}" class="peer sr-only">
+                                                                                        <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-500"></span>
+                                                                                        <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
+                                                                                    </span>
+                                                                                </label>
+                                                                                <textarea x-show="otherPunishmentEnabled" x-cloak :disabled="!otherPunishmentEnabled" rows="2" name="notes_defendant_sentences[{{ $defendantIndex }}][punishments][other]" placeholder="Бусад" form="{{ $formId }}" class="mt-2 w-full rounded border border-slate-300 px-2 py-1 text-xs">{{ $otherPunishmentValue }}</textarea>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -941,9 +1005,11 @@
                                                 </div>
                                             </div>
                                             </div>
-                                            <div class="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-4 py-3">
+                                            </div>
+                                            <div class="mt-auto shrink-0 border-t border-slate-200 bg-slate-50/95 px-4 py-3">
+                                                <div class="flex w-full items-center justify-end gap-2">
                                                 @if(!$isClerkUser)
-                                                    <label class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                                    <label class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 cursor-pointer select-none">
                                                         <span class="relative inline-flex h-5 w-9 items-center">
                                                             <input type="checkbox" name="notes_handover_issued" value="1" form="{{ $formId }}" class="peer sr-only" @checked($oldForCurrentHearing('notes_handover_issued', $h->notes_handover_issued))>
                                                             <span class="h-5 w-9 rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-500"></span>
@@ -951,26 +1017,23 @@
                                                         </span>
                                                         <span>Тэмдэглэл гаргасан</span>
                                                     </label>
-                                                @else
-                                                    <span></span>
                                                 @endif
-                                                <div class="flex items-center gap-2">
-                                                @if(\Illuminate\Support\Facades\Route::has($notesPrefix . '.notes.reschedule'))
-                                                    <form method="POST" action="{{ route($notesPrefix . '.notes.reschedule', $h) }}" x-show="['Хойшилсон', 'Завсарласан', '60 хүртэлх хоногоор хойшлуулсан'].includes(decisionStatus)" x-cloak>
-                                                        @csrf
-                                                        <button type="submit" class="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100">
-                                                            Хурлыг дахин зарлах
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                                <button type="button" @click="cancel()" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Цуцлах</button>
-                                                <button
-                                                    type="submit"
-                                                    form="{{ $formId }}"
-                                                    class="inline-flex items-center rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
-                                                >
-                                                    Хадгалах
-                                                </button>
+                                                    @if(\Illuminate\Support\Facades\Route::has($notesPrefix . '.notes.reschedule'))
+                                                        <form method="POST" action="{{ route($notesPrefix . '.notes.reschedule', $h) }}" x-show="((decisionStatus || '').trim() !== '') && ((decisionStatus || '').trim() !== 'Шийдвэрлэсэн')" x-cloak>
+                                                            @csrf
+                                                            <button type="submit" class="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100">
+                                                                Хурлыг дахин зарлах
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                    <button type="button" @click="cancel()" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Цуцлах</button>
+                                                    <button
+                                                        type="submit"
+                                                        form="{{ $formId }}"
+                                                        class="inline-flex items-center rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                                                    >
+                                                        Хадгалах
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>

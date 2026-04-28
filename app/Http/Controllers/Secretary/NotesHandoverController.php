@@ -41,23 +41,24 @@ class NotesHandoverController extends Controller
         }
 
         if ($request->filled('notes_decision_status')) {
-            $status = (string) $request->input('notes_decision_status');
+            $status = trim((string) $request->input('notes_decision_status'));
             if ($status === '__pending__') {
                 $known = [
                     'Шийдвэрлэсэн',
                     'Хойшилсон',
                     'Завсарласан',
+                    'Түдгэлзүүлсэн',
                     'Прокурорт буцаасан',
                     'Яллагдагчийг шүүхэд шилжүүлсэн',
                     '60 хүртэлх хоногоор хойшлуулсан',
                 ];
                 $query->where(function ($q) use ($known) {
                     $q->whereNull('notes_decision_status')
-                        ->orWhere('notes_decision_status', '')
-                        ->orWhereNotIn('notes_decision_status', $known);
+                        ->orWhereRaw("TRIM(notes_decision_status) = ''")
+                        ->orWhereRaw('TRIM(notes_decision_status) NOT IN ('.implode(',', array_fill(0, count($known), '?')).')', $known);
                 });
             } else {
-                $query->where('notes_decision_status', $status);
+                $query->whereRaw('TRIM(notes_decision_status) = ?', [$status]);
             }
         }
 

@@ -8,6 +8,7 @@
         'Шийдвэрлэсэн' => 'border-emerald-200 bg-emerald-50/40 text-emerald-800',
         'Хойшилсон' => 'border-amber-200 bg-amber-50/40 text-amber-800',
         'Завсарласан' => 'border-sky-200 bg-sky-50/40 text-sky-800',
+        'Түдгэлзүүлсэн' => 'border-orange-200 bg-orange-50/40 text-orange-800',
         'Прокурорт буцаасан' => 'border-rose-200 bg-rose-50/40 text-rose-800',
         'Яллагдагчийг шүүхэд шилжүүлсэн' => 'border-indigo-200 bg-indigo-50/40 text-indigo-800',
         '60 хүртэлх хоногоор хойшлуулсан' => 'border-violet-200 bg-violet-50/40 text-violet-800',
@@ -20,7 +21,8 @@
         <span class="text-[11px] sm:text-xs font-medium text-slate-500 shrink-0">{{ ($today ?? now())->format('Y') }} он (01/01-ээс)</span>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+    <div class="overflow-x-auto">
+        <div class="flex min-w-max flex-nowrap gap-2">
         @foreach($decisionOptions as $key => $label)
             @php
                 $cls = $palette[$key] ?? 'border-slate-200 bg-slate-50/40 text-slate-800';
@@ -30,17 +32,18 @@
                     : null;
             @endphp
             @if($filterUrl)
-                <a href="{{ $filterUrl }}" class="block rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }} hover:ring-2 hover:ring-slate-300/70 transition">
+                <a href="{{ $filterUrl }}" class="block min-w-[11rem] rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }} hover:ring-2 hover:ring-slate-300/70 transition">
                     <div class="text-[10px] sm:text-[11px] font-semibold opacity-80 leading-snug line-clamp-2">{{ $label }}</div>
                     <div class="mt-0.5 text-lg sm:text-xl font-extrabold tabular-nums">{{ number_format((int)($decisionCounts[$key] ?? 0)) }}</div>
                 </a>
             @else
-                <div class="rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }}">
+                <div class="min-w-[11rem] rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }}">
                     <div class="text-[10px] sm:text-[11px] font-semibold opacity-80 leading-snug line-clamp-2">{{ $label }}</div>
                     <div class="mt-0.5 text-lg sm:text-xl font-extrabold tabular-nums">{{ number_format((int)($decisionCounts[$key] ?? 0)) }}</div>
                 </div>
             @endif
         @endforeach
+        </div>
     </div>
 </div>
 

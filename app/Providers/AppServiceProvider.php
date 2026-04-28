@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Reports\Contracts\ReportExportServiceInterface;
+use App\Services\Reports\ExcelReportExportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(ReportExportServiceInterface::class, ExcelReportExportService::class);
+
         // Fortify-ийн /login давхардал routes/web.php (LoginController)-той үүсэхээс сэргийлнэ.
         Fortify::$registersRoutes = false;
     }

@@ -63,6 +63,13 @@ it('filters pending hearings in admin notes list', function () {
         'notes_decision_status' => 'Шийдвэрлэсэн',
         'defendants' => 'RESOLVED-HEARING',
     ]);
+    $suspended = createHearing([
+        'case_no' => 'ADMIN-SUSPENDED-001',
+        'start_at' => now()->startOfMonth()->addDays(5),
+        'hearing_date' => now()->startOfMonth()->addDays(5)->toDateString(),
+        'notes_decision_status' => 'Түдгэлзүүлсэн',
+        'defendants' => 'SUSPENDED-HEARING',
+    ]);
 
     $outOfRange = createHearing([
         'case_no' => 'ADMIN-OUT-OF-RANGE-001',
@@ -78,6 +85,7 @@ it('filters pending hearings in admin notes list', function () {
     expect($pendingNull->id)->not->toBeEmpty();
     expect($pendingUnknown->id)->not->toBeEmpty();
     expect($resolvedId)->not->toBeEmpty();
+    expect($suspended->id)->not->toBeEmpty();
     expect($outOfRangeId)->not->toBeEmpty();
 
     $this->actingAs($admin)
@@ -90,6 +98,7 @@ it('filters pending hearings in admin notes list', function () {
         ->assertSee('PENDING-NULL-HEARING')
         ->assertSee('PENDING-UNKNOWN-HEARING')
         ->assertDontSee('RESOLVED-HEARING')
+        ->assertDontSee('SUSPENDED-HEARING')
         ->assertDontSee('OUT-OF-RANGE-HEARING');
 });
 
@@ -118,6 +127,13 @@ it('filters resolved hearings by exact status in admin notes list', function () 
         'notes_decision_status' => 'Шийдвэрлэсэн',
         'defendants' => 'RESOLVED-FILTER-INCLUDE',
     ]);
+    createHearing([
+        'case_no' => 'ADMIN-RESOLVED-SPACED-002',
+        'start_at' => now()->startOfMonth()->addDays(3)->addHour(),
+        'hearing_date' => now()->startOfMonth()->addDays(3)->toDateString(),
+        'notes_decision_status' => ' Шийдвэрлэсэн ',
+        'defendants' => 'RESOLVED-FILTER-INCLUDE-SPACED',
+    ]);
 
     createHearing([
         'case_no' => 'ADMIN-PEND-UNKNOWN-002',
@@ -135,6 +151,7 @@ it('filters resolved hearings by exact status in admin notes list', function () 
         ]))
         ->assertOk()
         ->assertSee('RESOLVED-FILTER-INCLUDE')
+        ->assertSee('RESOLVED-FILTER-INCLUDE-SPACED')
         ->assertDontSee('RESOLVED-FILTER-EXCLUDE-PENDING')
         ->assertDontSee('RESOLVED-FILTER-EXCLUDE-UNKNOWN');
 });
@@ -188,5 +205,6 @@ it('includes interrupted decision status in reschedule button visibility rule', 
     $this->actingAs($admin)
         ->get(route('admin.notes.index'))
         ->assertOk()
-        ->assertSee("['Хойшилсон', 'Завсарласан', '60 хүртэлх хоногоор хойшлуулсан'].includes(decisionStatus)", false);
+        ->assertSee('Түдгэлзүүлсэн', false)
+        ->assertSee("((decisionStatus || '').trim() !== '') && ((decisionStatus || '').trim() !== 'Шийдвэрлэсэн')", false);
 });

@@ -51,6 +51,8 @@ return [
         'token' => env('DEFENDANT_SEARCH_API_TOKEN', ''),
         'token_header' => env('DEFENDANT_SEARCH_API_TOKEN_HEADER', 'Authorization'),
         'timeout' => (int) env('DEFENDANT_SEARCH_API_TIMEOUT', 15),
+        'connect_timeout' => (int) env('DEFENDANT_SEARCH_API_CONNECT_TIMEOUT', 0),
+        'force_ipv4' => filter_var(env('DEFENDANT_SEARCH_API_FORCE_IPV4', false), FILTER_VALIDATE_BOOL),
         'query_param' => env('DEFENDANT_SEARCH_API_QUERY_PARAM', 'registry'),
         'post_body_template' => env('DEFENDANT_SEARCH_API_POST_BODY', '{"registry":"{registry}"}'),
         'soap_action' => env('DEFENDANT_SEARCH_API_SOAP_ACTION', ''),
@@ -78,6 +80,8 @@ return [
         'username' => env('NOTIFICATION_USERNAME', ''),
         'password' => env('NOTIFICATION_PASSWORD', ''),
         'timeout' => (int) env('NOTIFICATION_TIMEOUT', 15),
+        'queue_connection' => env('NOTIFICATION_QUEUE_CONNECTION'),
+        'queue_name' => env('NOTIFICATION_QUEUE_NAME'),
     ],
 
 ];

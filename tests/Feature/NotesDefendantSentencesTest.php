@@ -53,10 +53,14 @@ it('saves defendant-level sentences when decision is solved', function () {
                     'defendant_registry' => 'ab12345678',
                     'decided_matter_ids' => [$m1->id],
                     'punishments' => [
+                        'damage_amount' => '450,000',
+                        'compensated_damage_amount' => '120,000',
+                        'asset_confiscation' => 1,
+                        'destroy_evidence' => 1,
+                        'other' => 'Нэмэлт нөхцөл',
                         'fine' => [
                             'enabled' => 1,
                             'fine_units' => '1,200,000',
-                            'damage_amount' => '300,000',
                         ],
                         'community_service' => [
                             'enabled' => 1,
@@ -73,6 +77,11 @@ it('saves defendant-level sentences when decision is solved', function () {
     expect($hearing->notes_defendant_sentences)->toBeArray()
         ->and($hearing->notes_defendant_sentences[0]['defendant_name'])->toBe('Шүүгдэгч 1')
         ->and($hearing->notes_defendant_sentences[0]['defendant_registry'])->toBe('AB12345678')
+        ->and($hearing->notes_defendant_sentences[0]['punishments']['damage_amount'])->toBe(450000)
+        ->and($hearing->notes_defendant_sentences[0]['punishments']['compensated_damage_amount'])->toBe(120000)
+        ->and($hearing->notes_defendant_sentences[0]['punishments']['asset_confiscation'])->toBeTrue()
+        ->and($hearing->notes_defendant_sentences[0]['punishments']['destroy_evidence'])->toBeTrue()
+        ->and($hearing->notes_defendant_sentences[0]['punishments']['other'])->toBe('Нэмэлт нөхцөл')
         ->and($hearing->notes_defendant_sentences[0]['punishments']['fine']['fine_units'])->toBe(1200000)
         ->and($hearing->notes_defendant_sentences[0]['punishments']['community_service']['hours'])->toBe(120)
         ->and($hearing->notes_decided_matter)->toContain('ЭХТА 10.1-2.2')

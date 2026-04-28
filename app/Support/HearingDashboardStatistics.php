@@ -16,6 +16,7 @@ class HearingDashboardStatistics
             'Шийдвэрлэсэн',
             'Хойшилсон',
             'Завсарласан',
+            'Түдгэлзүүлсэн',
             'Прокурорт буцаасан',
             'Яллагдагчийг шүүхэд шилжүүлсэн',
             '60 хүртэлх хоногоор хойшлуулсан',
@@ -38,14 +39,18 @@ class HearingDashboardStatistics
         }
 
         $totalForYear = (clone $yearQuery)->count();
-        $decidedTotal = (clone $yearQuery)->whereIn('notes_decision_status', $decidedStatuses)->count();
+        $decidedTotal = (clone $yearQuery)
+            ->whereNotNull('notes_decision_status')
+            ->whereRaw('TRIM(notes_decision_status) IN ('.implode(',', array_fill(0, count($decidedStatuses), '?')).')', $decidedStatuses)
+            ->count();
         $pendingCount = max(0, $totalForYear - $decidedTotal);
 
         $rawDecisionCounts = (clone $yearQuery)
             ->select(['notes_decision_status'])
-            ->whereIn('notes_decision_status', $decidedStatuses)
+            ->whereNotNull('notes_decision_status')
+            ->whereRaw('TRIM(notes_decision_status) IN ('.implode(',', array_fill(0, count($decidedStatuses), '?')).')', $decidedStatuses)
             ->get()
-            ->groupBy('notes_decision_status')
+            ->groupBy(fn ($row) => trim((string) $row->notes_decision_status))
             ->map(fn ($g) => $g->count())
             ->toArray();
 

@@ -44,5 +44,7 @@ it('computes pending as total minus decided statuses for the year query', functi
     $out = HearingDashboardStatistics::decisionBreakdown($yearQuery);
 
     expect($out['decisionCounts']['Хүлээгдэж буй'])->toBe(1)
-        ->and($out['decisionCounts']['Шийдвэрлэсэн'])->toBe(1);
+        ->and($out['decisionCounts']['Шийдвэрлэсэн'])->toBe(1)
+        ->and($out['decisionCounts']['Түдгэлзүүлсэн'])->toBe(0)
+        ->and($out['decisionOptions']['Түдгэлзүүлсэн'])->toBe('Түдгэлзүүлсэн');
 });

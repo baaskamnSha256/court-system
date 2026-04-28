@@ -161,12 +161,19 @@ Alpine.data('notesHandoverRow', (cfg) => ({
     if (!form) {
       return
     }
-    const clerk = form.querySelector('select[name="clerk_id"]')
-    if (clerk) {
+    const pickEnabled = (named) => {
+      if (!named) {
+        return null
+      }
+      const list = named instanceof RadioNodeList ? Array.from(named) : [named]
+      return list.find((el) => el && !el.disabled) ?? null
+    }
+    const clerk = pickEnabled(form.elements.namedItem('clerk_id'))
+    if (clerk instanceof HTMLSelectElement) {
       clerk.value = this.savedClerkId ? String(this.savedClerkId) : ''
     }
-    const issued = form.querySelector('input[name="notes_handover_issued"]')
-    if (issued) {
+    const issued = pickEnabled(form.elements.namedItem('notes_handover_issued'))
+    if (issued instanceof HTMLInputElement && issued.type === 'checkbox') {
       issued.checked = this.savedNotesHandoverIssued
     }
   },

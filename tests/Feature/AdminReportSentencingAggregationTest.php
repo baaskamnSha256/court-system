@@ -58,8 +58,9 @@ it('shows punishment and article aggregation rows on admin report', function () 
         ->assertOk()
         ->assertSee('Шүүгдэгчийн дэлгэрэнгүй файл')
         ->assertSee('Excel-тэй ижил багана')
-        ->assertSee('Хурал ID')
-        ->assertSee('Raw JSON');
+        ->assertSee('Хэргийн дугаар')
+        ->assertSee('Шүүх хуралдааны шийдвэр')
+        ->assertSee('Шийдвэрлэсэн зүйл анги');
 
     actingAs($admin)
         ->get(route('admin.reports.index', [
@@ -71,6 +72,91 @@ it('shows punishment and article aggregation rows on admin report', function () 
         ->assertSee('Шийдвэрлэсэн зүйл анги')
         ->assertSee('ЭХТА 10.1-2.2')
         ->assertSee('ЭХТА 33.1-6.4');
+});
+
+it('shows saved sentence decision per defendant in report detail table', function () {
+    ensureReportRole('admin');
+    ensureReportRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    Hearing::query()->create([
+        'created_by' => $admin->id,
+        'case_no' => 'R-DECISION-001',
+        'title' => 'Decision per defendant',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_defendant_sentences' => [
+            [
+                'defendant_name' => 'А шүүгдэгч',
+                'outcome_track' => 'termination',
+                'termination_kind' => 'acquit',
+                'termination_note' => 'Цагаатгасан',
+                'decided_matter_ids' => [],
+                'punishments' => [],
+            ],
+            [
+                'defendant_name' => 'Б шүүгдэгч',
+                'outcome_track' => 'no_sentence',
+                'special_outcome' => 'Эрүүгийн хариуцлагаас чөлөөлсөн',
+                'decided_matter_ids' => [],
+                'punishments' => [],
+            ],
+        ],
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.reports.index', [
+            'date_from' => now()->startOfMonth()->format('Y-m-d'),
+            'date_to' => now()->endOfMonth()->format('Y-m-d'),
+            'tab' => 'punishment',
+        ]))
+        ->assertOk()
+        ->assertSee('А шүүгдэгч')
+        ->assertSee('Цагаатгах')
+        ->assertSee('Б шүүгдэгч')
+        ->assertSee('Эрүүгийн хариуцлагаас чөлөөлсөн');
+});
+
+it('includes only decided hearings in defendant detail report table', function () {
+    ensureReportRole('admin');
+    ensureReportRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    Hearing::query()->create([
+        'created_by' => $admin->id,
+        'case_no' => 'R-NOT-DECIDED-001',
+        'title' => 'Not decided hearing',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 11,
+        'minute' => 30,
+        'courtroom' => 'B',
+        'notes_decision_status' => 'Хойшилсон',
+        'notes_defendant_sentences' => [
+            [
+                'defendant_name' => 'Тайлан руу орохгүй шүүгдэгч',
+                'defendant_registry' => 'УУ01010111',
+                'outcome_track' => 'sentence',
+                'decided_matter_ids' => [],
+                'punishments' => [],
+            ],
+        ],
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.reports.index', [
+            'date_from' => now()->startOfMonth()->format('Y-m-d'),
+            'date_to' => now()->endOfMonth()->format('Y-m-d'),
+            'tab' => 'punishment',
+        ]))
+        ->assertOk()
+        ->assertDontSee('Тайлан руу орохгүй шүүгдэгч');
 });
 
 it('uses per-article allocations for punishment x article statistics', function () {

@@ -300,7 +300,7 @@
                 - Excel дээд тал нь {{ number_format($exportLimit ?? 0) }} мөр.
             </div>
             <div class="text-xs text-slate-500">
-                - Доорх хүснэгт нь «Шүүгдэгчийн дэлгэрэнгүй файл» Excel-ийн A–T баганатай ижил нэр, ижил дараалалтай.
+                - Доорх хүснэгт нь «Шүүгдэгчийн дэлгэрэнгүй файл» Excel-ийн Sheet1 толгойн баганатай ижил нэр, ижил дараалалтай.
             </div>
         </div>
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -326,17 +326,12 @@
                     $detailCols = $defendantDetailColumns ?? [];
                     $detailColCount = max(count($detailCols), 1);
                 @endphp
-                <table class="w-full text-sm table-auto min-w-[2200px]">
+                <table class="w-full text-sm table-auto min-w-[1700px]">
                     <thead>
                         <tr class="bg-white border-b border-slate-200">
                             @foreach($detailCols as $col)
-                                @php
-                                    $ck = $col['key'];
-                                    $thAlign = in_array($ck, ['community_hours_total', 'fine_units_total', 'damage_amount_total', 'hearing_id'], true)
-                                        ? 'text-center'
-                                        : 'text-left';
-                                @endphp
-                                <th class="px-3 py-3 {{ $thAlign }} font-semibold text-slate-700 whitespace-nowrap">{{ $col['label'] }}</th>
+                                @php($thAlign = 'text-left')
+                                <th class="px-3 py-3 {{ $thAlign }} font-semibold text-slate-700 whitespace-normal break-words">{{ $col['label'] }}</th>
                             @endforeach
                         </tr>
                     </thead>
@@ -344,31 +339,10 @@
                         @forelse($defendantDetailRows ?? [] as $row)
                             <tr class="border-b border-slate-100 last:border-0 align-top">
                                 @foreach($detailCols as $col)
-                                    @php
-                                        $key = $col['key'];
-                                        $cell = $row[$key] ?? '';
-                                        $isNumericTotal = in_array($key, ['community_hours_total', 'fine_units_total', 'damage_amount_total'], true);
-                                    @endphp
-                                    @if($key === 'raw_sentence_json')
-                                        <td class="px-3 py-3 text-slate-700 max-w-[min(28rem,90vw)]">
-                                            @if($cell !== '')
-                                                <details class="text-xs">
-                                                    <summary class="cursor-pointer text-blue-700 hover:text-blue-900 font-medium select-none">Нээх</summary>
-                                                    <pre class="mt-2 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 text-[11px] leading-snug whitespace-pre-wrap break-words">{{ $cell }}</pre>
-                                                </details>
-                                            @else
-                                                <span class="text-slate-500">—</span>
-                                            @endif
-                                        </td>
-                                    @elseif($isNumericTotal)
-                                        <td class="px-3 py-3 text-center text-slate-700 tabular-nums whitespace-nowrap">{{ number_format((int) $cell) }}</td>
-                                    @elseif($key === 'hearing_id')
-                                        <td class="px-3 py-3 text-center text-slate-700 tabular-nums whitespace-nowrap">{{ (int) $cell ?: '—' }}</td>
-                                    @else
-                                        <td class="px-3 py-3 text-slate-700 min-w-[100px] max-w-xs whitespace-normal break-words @if(in_array($key, ['title', 'decision_status', 'defendant_name', 'special_outcome', 'termination_note', 'decided_matter', 'punishment_types', 'allocations'], true)) text-xs @endif">
-                                            {{ ($cell === '' || $cell === null) ? '—' : $cell }}
-                                        </td>
-                                    @endif
+                                    @php($cell = $row[$col['key']] ?? '')
+                                    <td class="px-3 py-3 text-slate-700 min-w-[100px] max-w-xs whitespace-normal break-words">
+                                        {{ ($cell === '' || $cell === null) ? '—' : $cell }}
+                                    </td>
                                 @endforeach
                             </tr>
                         @empty

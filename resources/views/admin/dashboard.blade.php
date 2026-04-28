@@ -10,8 +10,8 @@
             'decisionOptions' => $decisionOptions ?? [],
             'decisionCounts' => $decisionCounts ?? [],
             'decisionFilterBaseUrl' => route('admin.notes.index', [
-                'hearing_date_from' => $monthStart->toDateString(),
-                'hearing_date_to' => $monthEnd->toDateString(),
+                'hearing_date_from' => $yearStart->toDateString(),
+                'hearing_date_to' => $yearEnd->toDateString(),
             ]),
         ])
     </div>

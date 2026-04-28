@@ -31,9 +31,21 @@ class DefendantRegistrySearchService
         $protocol = strtolower((string) ($config['protocol'] ?? 'rest'));
         $method = strtoupper((string) ($config['method'] ?? 'GET'));
         $timeout = (int) ($config['timeout'] ?? 15);
+        $connectTimeout = (int) ($config['connect_timeout'] ?? 0);
 
         $client = Http::timeout($timeout);
+        if ($connectTimeout > 0) {
+            $client = $client->withOptions([
+                'connect_timeout' => $connectTimeout,
+            ]);
+        }
+
         $curlOptions = [];
+        if ((bool) ($config['force_ipv4'] ?? false)) {
+            if (defined('CURLOPT_IPRESOLVE') && defined('CURL_IPRESOLVE_V4')) {
+                $curlOptions[CURLOPT_IPRESOLVE] = CURL_IPRESOLVE_V4;
+            }
+        }
 
         $certPath = trim((string) ($config['cert_path'] ?? ''));
         if ($certPath !== '') {

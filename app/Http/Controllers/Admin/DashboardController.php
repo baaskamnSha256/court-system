@@ -61,6 +61,8 @@ class DashboardController extends Controller
             'hearingsCountByDay',
             'decisionOptions',
             'decisionCounts',
+            'yearStart',
+            'yearEnd',
             'monthStart',
             'monthEnd'
         ));
