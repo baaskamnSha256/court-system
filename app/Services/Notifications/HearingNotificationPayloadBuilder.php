@@ -28,11 +28,12 @@ class HearingNotificationPayloadBuilder
         $courtroom = $hearing->courtroom ?: '—';
 
         $message = sprintf(
-            'Хэрэг № %s. Огноо: %s %s. Танхим: %s.',
+            "Шүүх хуралдааны зар:\n\nХэрэг № %s\nОгноо: %s\nЦаг: %s\nТанхим: %s\n\nТа хурлын цагаас 30 минутын өмнө ирнэ үү.\nМэдээлэл лавлагаа: %d",
             $caseNo,
             $date,
             $time,
-            $courtroom
+            $courtroom,
+            (int) $hearing->id
         );
 
         return [

@@ -53,12 +53,14 @@ class HearingNotificationService
                 continue;
             }
 
+            $recipientMessage = $this->buildRecipientMessage($payload['message'], $recipient);
+
             $job = SendEmongoliaNotificationJob::dispatch(
                 $payload['title'],
                 [
-                    'Mail' => $payload['message'],
-                    'Messenger' => $payload['message'],
-                    'Notification' => $payload['message'],
+                    'Mail' => $recipientMessage,
+                    'Messenger' => $recipientMessage,
+                    'Notification' => $recipientMessage,
                 ],
                 $regnum,
                 null,
@@ -78,5 +80,41 @@ class HearingNotificationService
                 $job->onQueue($queue);
             }
         }
+    }
+
+    private function buildRecipientMessage(string $baseMessage, array $recipient): string
+    {
+        $role = $this->roleLabel((string) ($recipient['role'] ?? ''));
+        $name = trim((string) ($recipient['name'] ?? ''));
+
+        if ($role === '' && $name === '') {
+            return $baseMessage;
+        }
+
+        if ($role !== '' && $name !== '') {
+            return $role.' '.$name." та\n".$baseMessage;
+        }
+
+        return ($role !== '' ? $role : $name)." та\n".$baseMessage;
+    }
+
+    private function roleLabel(string $role): string
+    {
+        return match ($role) {
+            'judge' => 'Шүүгч',
+            'prosecutor' => 'Прокурор',
+            'defendant_lawyer' => 'Шүүгдэгчийн өмгөөлөгч',
+            'defendant' => 'Шүүгдэгч',
+            'victim' => 'Хохирогч',
+            'victim_legal_rep' => 'Хохирогчийн хууль ёсны төлөөлөгч',
+            'victim_legal_rep_lawyer' => 'Хохирогчийн хууль ёсны төлөөлөгчийн өмгөөлөгч',
+            'victim_lawyer' => 'Хохирогчийн өмгөөлөгч',
+            'civil_plaintiff_lawyer' => 'Иргэний нэхэмжлэгчийн өмгөөлөгч',
+            'civil_defendant_lawyer' => 'Иргэний хариуцагчийн өмгөөлөгч',
+            'witness' => 'Гэрч',
+            'civil_plaintiff' => 'Иргэний нэхэмжлэгч',
+            'civil_defendant' => 'Иргэний хариуцагч',
+            default => '',
+        };
     }
 }
