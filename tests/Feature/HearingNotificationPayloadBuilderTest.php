@@ -63,3 +63,67 @@ it('builds payload with hearing participants', function () {
         ->and(collect($payload['recipients'])->pluck('name')->all())
         ->toContain('Judge One', 'Prosecutor One', 'Lawyer One');
 });
+
+it('includes defendants, victims and civil participants when data exists', function () {
+    Role::firstOrCreate(['name' => 'judge', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'prosecutor', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'lawyer', 'guard_name' => 'web']);
+
+    $judge = User::factory()->create([
+        'name' => 'Judge Two',
+        'register_number' => 'JG12345678',
+    ]);
+    $judge->assignRole('judge');
+
+    $prosecutor = User::factory()->create([
+        'name' => 'Prosecutor Two',
+        'register_number' => 'PR12345678',
+    ]);
+    $prosecutor->assignRole('prosecutor');
+
+    $defendantLawyer = User::factory()->create([
+        'name' => 'Def Lawyer',
+        'register_number' => 'LW12345678',
+    ]);
+    $defendantLawyer->assignRole('lawyer');
+
+    $hearing = Hearing::create([
+        'created_by' => $judge->id,
+        'case_no' => '2026/002',
+        'title' => 'Хэвийн',
+        'hearing_state' => 'Хэвийн',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 11,
+        'minute' => 0,
+        'start_at' => now()->setTime(11, 0),
+        'end_at' => now()->setTime(11, 30),
+        'duration_minutes' => 30,
+        'courtroom' => 'B',
+        'preventive_measure' => 'Цагдан хорих',
+        'prosecutor_id' => $prosecutor->id,
+        'prosecutor_ids' => [$prosecutor->id],
+        'defendant_names' => ['Defendant One'],
+        'defendant_registries' => ['DD12345678'],
+        'defendant_lawyers_text' => ['Def Lawyer'],
+        'victim_name' => 'Victim One',
+        'witnesses' => 'Witness One',
+        'civil_plaintiff' => 'Civil Plaintiff One',
+        'civil_defendant' => 'Civil Defendant One',
+        'status' => 'scheduled',
+    ]);
+    $hearing->judges()->attach($judge->id, ['position' => 1]);
+
+    $payload = app(HearingNotificationPayloadBuilder::class)->build($hearing, 'created');
+    $recipients = collect($payload['recipients']);
+
+    expect($recipients->pluck('role')->all())->toContain(
+        'judge',
+        'prosecutor',
+        'defendant_lawyer',
+        'defendant'
+    );
+
+    $defendantRecipient = $recipients->firstWhere('role', 'defendant');
+    expect($defendantRecipient)->not->toBeNull()
+        ->and($defendantRecipient['regnum'])->toBe('DD12345678');
+});

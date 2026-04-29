@@ -5,6 +5,7 @@
     $buttonLabel = $buttonLabel ?? 'Нэмэх';
     $modalTitle = $modalTitle ?? 'Оруулах';
     $searchUrl = $searchUrl ?? route('admin.defendant-search');
+    $registryKey = $registryKey ?? null;
 @endphp
 <div
     class="flex flex-wrap items-end gap-3"
@@ -75,6 +76,11 @@
     <template x-for="(d, i) in items" :key="'h-'+i">
         <input type="hidden" :name="'{{ $nameKey }}['+i+']'" :value="d.name">
     </template>
+    @if($registryKey)
+        <template x-for="(d, i) in items" :key="'r-'+i">
+            <input type="hidden" :name="'{{ $registryKey }}['+i+']'" :value="d.registry || ''">
+        </template>
+    @endif
 
     <div x-show="openModal"
          x-cloak

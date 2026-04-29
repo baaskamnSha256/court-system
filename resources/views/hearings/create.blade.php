@@ -553,20 +553,24 @@ function chipSelect(config) {
 
         @php
             $searchUrl = $defendantSearchUrl ?? route('admin.defendant-search');
-            $toInitial = function ($key, $fallbackKey = null) {
+            $toInitial = function ($key, $registryKey = null, $fallbackKey = null) {
                 $arr = old($key, []);
                 if (!is_array($arr)) $arr = [];
+                $registries = $registryKey ? old($registryKey, []) : [];
+                if (!is_array($registries)) $registries = [];
                 if (empty($arr) && $fallbackKey && is_string(old($fallbackKey)) && trim(old($fallbackKey)) !== '') {
                     $arr = array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', old($fallbackKey)))));
                 }
-                return collect($arr)->map(fn($n) => ['name' => $n, 'registry' => ''])->values();
+                return collect($arr)->values()->map(function ($n, $i) use ($registries) {
+                    return ['name' => $n, 'registry' => trim((string)($registries[$i] ?? ''))];
+                })->values();
             };
-            $initialVictims = $toInitial('victim_names', 'victim_name');
-            $initialVictimLegalReps = $toInitial('victim_legal_rep_names', 'victim_legal_rep');
-            $initialWitnesses = $toInitial('witness_names', 'witnesses');
-            $initialExperts = $toInitial('expert_names', 'experts');
-            $initialCivilPlaintiffs = $toInitial('civil_plaintiff_names', 'civil_plaintiff');
-            $initialCivilDefendants = $toInitial('civil_defendant_names', 'civil_defendant');
+            $initialVictims = $toInitial('victim_names', 'victim_registries', 'victim_name');
+            $initialVictimLegalReps = $toInitial('victim_legal_rep_names', 'victim_legal_rep_registries', 'victim_legal_rep');
+            $initialWitnesses = $toInitial('witness_names', 'witness_registries', 'witnesses');
+            $initialExperts = $toInitial('expert_names', null, 'experts');
+            $initialCivilPlaintiffs = $toInitial('civil_plaintiff_names', 'civil_plaintiff_registries', 'civil_plaintiff');
+            $initialCivilDefendants = $toInitial('civil_defendant_names', 'civil_defendant_registries', 'civil_defendant');
         @endphp
 
         {{-- Хохирогч + хууль ёсны төлөөлөгч — хэрэгтэй үед нэмэх --}}
@@ -583,6 +587,7 @@ function chipSelect(config) {
                 'buttonLabel' => 'Хохирогч нэмэх',
                 'modalTitle' => 'Хохирогч оруулах',
                 'searchUrl' => $searchUrl,
+                'registryKey' => 'victim_registries',
             ])
 
             <div x-show="showVictimRep" x-transition>
@@ -593,6 +598,7 @@ function chipSelect(config) {
                     'buttonLabel' => 'Хохирогчийн хууль ёсны төлөөлөгч нэмэх',
                     'modalTitle' => 'Хохирогчийн хууль ёсны төлөөлөгч оруулах',
                     'searchUrl' => $searchUrl,
+                    'registryKey' => 'victim_legal_rep_registries',
                 ])
             </div>
 
@@ -1065,6 +1071,7 @@ function chipSelect(config) {
                     'buttonLabel' => 'Гэрч нэмэх',
                     'modalTitle' => 'Гэрч оруулах',
                     'searchUrl' => $searchUrl,
+                'registryKey' => 'witness_registries',
                 ])
             </div>
 
@@ -1085,6 +1092,7 @@ function chipSelect(config) {
                     'buttonLabel' => 'Иргэний нэхэмжлэгч нэмэх',
                     'modalTitle' => 'Иргэний нэхэмжлэгч оруулах',
                     'searchUrl' => $searchUrl,
+                'registryKey' => 'civil_plaintiff_registries',
                 ])
             </div>
 
@@ -1096,6 +1104,7 @@ function chipSelect(config) {
                     'buttonLabel' => 'Иргэний хариуцагч нэмэх',
                     'modalTitle' => 'Иргэний хариуцагч оруулах',
                     'searchUrl' => $searchUrl,
+                'registryKey' => 'civil_defendant_registries',
                 ])
             </div>
 

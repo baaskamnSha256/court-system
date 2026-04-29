@@ -91,6 +91,75 @@ it('dispatches notification job for each recipient with regnum', function () {
     );
 });
 
+it('dispatches jobs for non-user participants using hearing registries', function () {
+    Queue::fake();
+
+    config()->set('services.notification.enabled', true);
+    config()->set('services.notification.access_token', 'fixed-access-token');
+    config()->set('services.notification.notify_url', 'https://notification.mn/api/v1/notification');
+
+    Role::firstOrCreate(['name' => 'judge', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'prosecutor', 'guard_name' => 'web']);
+
+    $judge = User::factory()->create(['name' => 'Judge', 'register_number' => 'AB12345678']);
+    $judge->assignRole('judge');
+
+    $prosecutor = User::factory()->create(['name' => 'Prosecutor', 'register_number' => 'CD12345678']);
+    $prosecutor->assignRole('prosecutor');
+
+    $hearing = Hearing::create([
+        'created_by' => $judge->id,
+        'case_no' => '2026/777',
+        'title' => 'Тест',
+        'hearing_state' => 'Хэвийн',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 9,
+        'minute' => 0,
+        'start_at' => now()->setTime(9, 0),
+        'end_at' => now()->setTime(9, 30),
+        'duration_minutes' => 30,
+        'courtroom' => '1',
+        'preventive_measure' => 'Цагдан хорих',
+        'prosecutor_id' => $prosecutor->id,
+        'prosecutor_ids' => [$prosecutor->id],
+        'defendant_names' => ['Defendant One'],
+        'defendant_registries' => ['ZZ12345678'],
+        'victim_name' => "Victim One\nVictim Two",
+        'victim_registries' => ['VV12345678', 'VV22345678'],
+        'victim_legal_rep' => 'Victim Rep One',
+        'victim_legal_rep_registries' => ['VR12345678'],
+        'witnesses' => 'Witness One',
+        'witness_registries' => ['WW12345678'],
+        'civil_plaintiff' => 'Civil Plaintiff One',
+        'civil_plaintiff_registries' => ['CP12345678'],
+        'civil_defendant' => 'Civil Defendant One',
+        'civil_defendant_registries' => ['CF12345678'],
+        'status' => 'scheduled',
+    ]);
+    $hearing->judges()->attach($judge->id, ['position' => 1]);
+
+    app(HearingNotificationService::class)->send($hearing, 'created');
+
+    Queue::assertPushed(SendEmongoliaNotificationJob::class, 9);
+
+    foreach ([
+        'AB12345678', // judge
+        'CD12345678', // prosecutor
+        'ZZ12345678', // defendant
+        'VV12345678', // victim 1
+        'VV22345678', // victim 2
+        'VR12345678', // victim legal rep
+        'WW12345678', // witness
+        'CP12345678', // civil plaintiff
+        'CF12345678', // civil defendant
+    ] as $regnum) {
+        Queue::assertPushed(
+            SendEmongoliaNotificationJob::class,
+            fn (SendEmongoliaNotificationJob $job) => $job->regnum === $regnum
+        );
+    }
+});
+
 it('skips dispatching when notifications are disabled', function () {
     Queue::fake();
 

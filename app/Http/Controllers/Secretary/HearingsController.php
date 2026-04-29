@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
 use App\Models\User;
+use App\Services\Notifications\HearingNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -245,7 +246,7 @@ class HearingsController extends Controller
         $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
         $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, null, $prosecutorIds);
 
-        return DB::transaction(function () use ($request, $data, $start, $end, $duration) {
+        $hearing = DB::transaction(function () use ($request, $data, $start, $end, $duration) {
             $hearing = Hearing::create([
                 'created_by' => auth()->id(),
                 'case_no' => $data['case_no'] ?? null,
@@ -265,26 +266,35 @@ class HearingsController extends Controller
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
                 'defendant_registries' => array_values($data['defendant_registries'] ?? []),
+                'victim_registries' => array_values($data['victim_registries'] ?? []),
+                'victim_legal_rep_registries' => array_values($data['victim_legal_rep_registries'] ?? []),
+                'witness_registries' => array_values($data['witness_registries'] ?? []),
+                'civil_plaintiff_registries' => array_values($data['civil_plaintiff_registries'] ?? []),
+                'civil_defendant_registries' => array_values($data['civil_defendant_registries'] ?? []),
                 'defendant_lawyers_text' => array_values(array_filter($data['defendant_lawyers_text'] ?? [])),
                 'victim_lawyers_text' => array_values(array_filter($data['victim_lawyers_text'] ?? [])),
                 'victim_legal_rep_lawyers_text' => array_values(array_filter($data['victim_legal_rep_lawyers_text'] ?? [])),
                 'civil_plaintiff_lawyers' => array_values(array_filter($data['civil_plaintiff_lawyers'] ?? [])),
                 'civil_defendant_lawyers' => array_values(array_filter($data['civil_defendant_lawyers'] ?? [])),
                 'matter_category_ids' => array_values(array_filter(array_map('intval', $data['matter_category_ids'] ?? []))),
-                'victim_name' => $data['victim_name'] ?? null,
-                'victim_legal_rep' => $data['victim_legal_rep'] ?? null,
-                'witnesses' => $data['witnesses'] ?? null,
+                'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
+                'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),
+                'witnesses' => $this->namesArrayToText($data['witness_names'] ?? []),
                 'experts' => $data['experts'] ?? null,
-                'civil_plaintiff' => $data['civil_plaintiff'] ?? null,
-                'civil_defendant' => $data['civil_defendant'] ?? null,
+                'civil_plaintiff' => $this->namesArrayToText($data['civil_plaintiff_names'] ?? []),
+                'civil_defendant' => $this->namesArrayToText($data['civil_defendant_names'] ?? []),
                 'note' => $data['note'] ?? null,
                 'status' => 'scheduled',
             ]);
 
             $this->syncJudgesPivot($hearing, $request);
 
-            return redirect()->route('secretary.hearings.index')->with('success', 'Хурлын зар бүртгэлээ.');
+            return $hearing->fresh();
         });
+
+        $this->dispatchHearingNotification($hearing, 'created');
+
+        return redirect()->route('secretary.hearings.index')->with('success', 'Хурлын зар бүртгэлээ.');
     }
 
     private function normalizeFormData(array $data): array
@@ -305,6 +315,37 @@ class HearingsController extends Controller
                 return mb_strtoupper(trim((string) ($rawDefendantRegistries[$index] ?? '')), 'UTF-8');
             })
             ->all();
+        $textToNames = function (string $key, string $fallback) use ($data): array {
+            $arr = $data[$key] ?? [];
+            if (is_array($arr) && ! empty($arr)) {
+                return array_values(array_filter(array_map('trim', $arr)));
+            }
+
+            return $this->parseTextToArray((string) ($data[$fallback] ?? ''));
+        };
+        $mapNamesWithRegistries = function (array $names, string $registryKey) use ($data): array {
+            $rawRegistries = $data[$registryKey] ?? [];
+            if (! is_array($rawRegistries)) {
+                $rawRegistries = [];
+            }
+
+            return collect($names)
+                ->values()
+                ->map(function ($_, $index) use ($rawRegistries) {
+                    return mb_strtoupper(trim((string) ($rawRegistries[$index] ?? '')), 'UTF-8');
+                })
+                ->all();
+        };
+        $data['victim_names'] = $textToNames('victim_names', 'victim_name');
+        $data['victim_legal_rep_names'] = $textToNames('victim_legal_rep_names', 'victim_legal_rep');
+        $data['witness_names'] = $textToNames('witness_names', 'witnesses');
+        $data['civil_plaintiff_names'] = $textToNames('civil_plaintiff_names', 'civil_plaintiff');
+        $data['civil_defendant_names'] = $textToNames('civil_defendant_names', 'civil_defendant');
+        $data['victim_registries'] = $mapNamesWithRegistries((array) ($data['victim_names'] ?? []), 'victim_registries');
+        $data['victim_legal_rep_registries'] = $mapNamesWithRegistries((array) ($data['victim_legal_rep_names'] ?? []), 'victim_legal_rep_registries');
+        $data['witness_registries'] = $mapNamesWithRegistries((array) ($data['witness_names'] ?? []), 'witness_registries');
+        $data['civil_plaintiff_registries'] = $mapNamesWithRegistries((array) ($data['civil_plaintiff_names'] ?? []), 'civil_plaintiff_registries');
+        $data['civil_defendant_registries'] = $mapNamesWithRegistries((array) ($data['civil_defendant_names'] ?? []), 'civil_defendant_registries');
         if (empty($data['defendant_lawyers_text']) && ! empty($data['defendant_lawyers_text_str'] ?? '')) {
             $data['defendant_lawyers_text'] = $this->parseTextToArray($data['defendant_lawyers_text_str']);
         }
@@ -316,6 +357,11 @@ class HearingsController extends Controller
         }
 
         return $data;
+    }
+
+    private function namesArrayToText(array $names): string
+    {
+        return implode("\n", array_values(array_filter($names)));
     }
 
     public function update(Request $request, Hearing $hearing)
@@ -351,7 +397,7 @@ class HearingsController extends Controller
         $prosecutorIds = array_values(array_filter(array_unique(array_map('intval', $data['prosecutor_ids'] ?? []))));
         $this->assertNoConflict($start, $end, $data['courtroom'], $judgeIds, $lawyerNames, $hearing->id, $prosecutorIds);
 
-        return DB::transaction(function () use ($request, $data, $hearing, $start, $end, $duration) {
+        $hearing = DB::transaction(function () use ($request, $data, $hearing, $start, $end, $duration) {
             $hearing->update([
                 'case_no' => $data['case_no'] ?? null,
                 'title' => $data['title'],
@@ -370,25 +416,34 @@ class HearingsController extends Controller
                 'prosecutor_id' => $data['prosecutor_id'] ?? null,
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
                 'defendant_registries' => array_values($data['defendant_registries'] ?? []),
+                'victim_registries' => array_values($data['victim_registries'] ?? []),
+                'victim_legal_rep_registries' => array_values($data['victim_legal_rep_registries'] ?? []),
+                'witness_registries' => array_values($data['witness_registries'] ?? []),
+                'civil_plaintiff_registries' => array_values($data['civil_plaintiff_registries'] ?? []),
+                'civil_defendant_registries' => array_values($data['civil_defendant_registries'] ?? []),
                 'defendant_lawyers_text' => array_values(array_filter($data['defendant_lawyers_text'] ?? [])),
                 'victim_lawyers_text' => array_values(array_filter($data['victim_lawyers_text'] ?? [])),
                 'victim_legal_rep_lawyers_text' => array_values(array_filter($data['victim_legal_rep_lawyers_text'] ?? [])),
                 'civil_plaintiff_lawyers' => array_values(array_filter($data['civil_plaintiff_lawyers'] ?? [])),
                 'civil_defendant_lawyers' => array_values(array_filter($data['civil_defendant_lawyers'] ?? [])),
                 'matter_category_ids' => array_values(array_filter(array_map('intval', $data['matter_category_ids'] ?? []))),
-                'victim_name' => $data['victim_name'] ?? null,
-                'victim_legal_rep' => $data['victim_legal_rep'] ?? null,
-                'witnesses' => $data['witnesses'] ?? null,
+                'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
+                'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),
+                'witnesses' => $this->namesArrayToText($data['witness_names'] ?? []),
                 'experts' => $data['experts'] ?? null,
-                'civil_plaintiff' => $data['civil_plaintiff'] ?? null,
-                'civil_defendant' => $data['civil_defendant'] ?? null,
+                'civil_plaintiff' => $this->namesArrayToText($data['civil_plaintiff_names'] ?? []),
+                'civil_defendant' => $this->namesArrayToText($data['civil_defendant_names'] ?? []),
                 'note' => $data['note'] ?? null,
             ]);
 
             $this->syncJudgesPivot($hearing, $request);
 
-            return redirect()->route('secretary.hearings.index')->with('success', 'Хурлын зар шинэчлэгдлээ.');
+            return $hearing->fresh();
         });
+
+        $this->dispatchHearingNotification($hearing, 'updated');
+
+        return redirect()->route('secretary.hearings.index')->with('success', 'Хурлын зар шинэчлэгдлээ.');
     }
 
     /**
@@ -468,6 +523,11 @@ class HearingsController extends Controller
         }
     }
 
+    private function dispatchHearingNotification(Hearing $hearing, string $action): void
+    {
+        app(HearingNotificationService::class)->send($hearing, $action);
+    }
+
     private function validateHearing(Request $request): array
     {
         $data = $request->validate([
@@ -488,6 +548,26 @@ class HearingsController extends Controller
             'defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'defendant_names_text' => ['nullable', 'string'],
             'defendants' => ['nullable', 'string'],
+            'victim_names' => ['nullable', 'array'],
+            'victim_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_registries' => ['nullable', 'array'],
+            'victim_registries.*' => ['nullable', 'string', 'max:20'],
+            'victim_legal_rep_names' => ['nullable', 'array'],
+            'victim_legal_rep_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_registries' => ['nullable', 'array'],
+            'victim_legal_rep_registries.*' => ['nullable', 'string', 'max:20'],
+            'witness_names' => ['nullable', 'array'],
+            'witness_names.*' => ['nullable', 'string', 'max:255'],
+            'witness_registries' => ['nullable', 'array'],
+            'witness_registries.*' => ['nullable', 'string', 'max:20'],
+            'civil_plaintiff_names' => ['nullable', 'array'],
+            'civil_plaintiff_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff_registries' => ['nullable', 'array'],
+            'civil_plaintiff_registries.*' => ['nullable', 'string', 'max:20'],
+            'civil_defendant_names' => ['nullable', 'array'],
+            'civil_defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_registries' => ['nullable', 'array'],
+            'civil_defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'preventive_measure' => ['required', 'array', 'min:1'],
             'preventive_measure.*' => ['required', 'string', Rule::in($this->allowedPreventiveMeasures())],
             'prosecutor_ids' => ['required', 'array', 'min:1'],

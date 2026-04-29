@@ -197,6 +197,19 @@ class HearingsController extends Controller
                 return mb_strtoupper(trim((string) ($rawDefendantRegistries[$index] ?? '')), 'UTF-8');
             })
             ->all();
+        $mapNamesWithRegistries = function (array $names, string $registryKey) use ($request): array {
+            $rawRegistries = $request->input($registryKey, []);
+            if (! is_array($rawRegistries)) {
+                $rawRegistries = [];
+            }
+
+            return collect($names)
+                ->values()
+                ->map(function ($_, $index) use ($rawRegistries) {
+                    return mb_strtoupper(trim((string) ($rawRegistries[$index] ?? '')), 'UTF-8');
+                })
+                ->all();
+        };
         if (empty($data['defendant_lawyers_text']) && $request->has('defendant_lawyers')) {
             $data['defendant_lawyers_text'] = array_values(array_filter((array) $request->input('defendant_lawyers')));
         }
@@ -236,6 +249,11 @@ class HearingsController extends Controller
         if (empty($data['civil_defendant_names'])) {
             $data['civil_defendant_names'] = $textToNames('civil_defendant_names', 'civil_defendant');
         }
+        $data['victim_registries'] = $mapNamesWithRegistries((array) ($data['victim_names'] ?? []), 'victim_registries');
+        $data['victim_legal_rep_registries'] = $mapNamesWithRegistries((array) ($data['victim_legal_rep_names'] ?? []), 'victim_legal_rep_registries');
+        $data['witness_registries'] = $mapNamesWithRegistries((array) ($data['witness_names'] ?? []), 'witness_registries');
+        $data['civil_plaintiff_registries'] = $mapNamesWithRegistries((array) ($data['civil_plaintiff_names'] ?? []), 'civil_plaintiff_registries');
+        $data['civil_defendant_registries'] = $mapNamesWithRegistries((array) ($data['civil_defendant_names'] ?? []), 'civil_defendant_registries');
         if (empty($data['prosecutor_ids']) && ! empty($data['prosecutor_id'])) {
             $data['prosecutor_ids'] = [(int) $data['prosecutor_id']];
         }
@@ -326,21 +344,31 @@ class HearingsController extends Controller
 
             'victim_names' => ['nullable', 'array'],
             'victim_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_registries' => ['nullable', 'array'],
+            'victim_registries.*' => ['nullable', 'string', 'max:20'],
             'victim_name' => ['nullable', 'string'],
             'victim_legal_rep_names' => ['nullable', 'array'],
             'victim_legal_rep_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_registries' => ['nullable', 'array'],
+            'victim_legal_rep_registries.*' => ['nullable', 'string', 'max:20'],
             'victim_legal_rep' => ['nullable', 'string'],
             'witness_names' => ['nullable', 'array'],
             'witness_names.*' => ['nullable', 'string', 'max:255'],
+            'witness_registries' => ['nullable', 'array'],
+            'witness_registries.*' => ['nullable', 'string', 'max:20'],
             'witnesses' => ['nullable', 'string'],
             'expert_names' => ['nullable', 'array'],
             'expert_names.*' => ['nullable', 'string', 'max:255'],
             'experts' => ['nullable', 'string'],
             'civil_plaintiff_names' => ['nullable', 'array'],
             'civil_plaintiff_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff_registries' => ['nullable', 'array'],
+            'civil_plaintiff_registries.*' => ['nullable', 'string', 'max:20'],
             'civil_plaintiff' => ['nullable', 'string'],
             'civil_defendant_names' => ['nullable', 'array'],
             'civil_defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_registries' => ['nullable', 'array'],
+            'civil_defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'civil_defendant' => ['nullable', 'string'],
 
             // таслан сэргийлэх арга хэмжээ (олон сонголт)
@@ -454,6 +482,11 @@ class HearingsController extends Controller
 
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
                 'defendant_registries' => array_values($data['defendant_registries'] ?? []),
+                'victim_registries' => array_values($data['victim_registries'] ?? []),
+                'victim_legal_rep_registries' => array_values($data['victim_legal_rep_registries'] ?? []),
+                'witness_registries' => array_values($data['witness_registries'] ?? []),
+                'civil_plaintiff_registries' => array_values($data['civil_plaintiff_registries'] ?? []),
+                'civil_defendant_registries' => array_values($data['civil_defendant_registries'] ?? []),
 
                 'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
                 'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),
@@ -521,21 +554,31 @@ class HearingsController extends Controller
 
             'victim_names' => ['nullable', 'array'],
             'victim_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_registries' => ['nullable', 'array'],
+            'victim_registries.*' => ['nullable', 'string', 'max:20'],
             'victim_name' => ['nullable', 'string'],
             'victim_legal_rep_names' => ['nullable', 'array'],
             'victim_legal_rep_names.*' => ['nullable', 'string', 'max:255'],
+            'victim_legal_rep_registries' => ['nullable', 'array'],
+            'victim_legal_rep_registries.*' => ['nullable', 'string', 'max:20'],
             'victim_legal_rep' => ['nullable', 'string'],
             'witness_names' => ['nullable', 'array'],
             'witness_names.*' => ['nullable', 'string', 'max:255'],
+            'witness_registries' => ['nullable', 'array'],
+            'witness_registries.*' => ['nullable', 'string', 'max:20'],
             'witnesses' => ['nullable', 'string'],
             'expert_names' => ['nullable', 'array'],
             'expert_names.*' => ['nullable', 'string', 'max:255'],
             'experts' => ['nullable', 'string'],
             'civil_plaintiff_names' => ['nullable', 'array'],
             'civil_plaintiff_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_plaintiff_registries' => ['nullable', 'array'],
+            'civil_plaintiff_registries.*' => ['nullable', 'string', 'max:20'],
             'civil_plaintiff' => ['nullable', 'string'],
             'civil_defendant_names' => ['nullable', 'array'],
             'civil_defendant_names.*' => ['nullable', 'string', 'max:255'],
+            'civil_defendant_registries' => ['nullable', 'array'],
+            'civil_defendant_registries.*' => ['nullable', 'string', 'max:20'],
             'civil_defendant' => ['nullable', 'string'],
 
             'preventive_measure' => ['required', 'array', 'min:1'],
@@ -640,6 +683,11 @@ class HearingsController extends Controller
 
                 'defendant_names' => array_values(array_filter($data['defendant_names'] ?? [])),
                 'defendant_registries' => array_values($data['defendant_registries'] ?? []),
+                'victim_registries' => array_values($data['victim_registries'] ?? []),
+                'victim_legal_rep_registries' => array_values($data['victim_legal_rep_registries'] ?? []),
+                'witness_registries' => array_values($data['witness_registries'] ?? []),
+                'civil_plaintiff_registries' => array_values($data['civil_plaintiff_registries'] ?? []),
+                'civil_defendant_registries' => array_values($data['civil_defendant_registries'] ?? []),
 
                 'victim_name' => $this->namesArrayToText($data['victim_names'] ?? []),
                 'victim_legal_rep' => $this->namesArrayToText($data['victim_legal_rep_names'] ?? []),

@@ -357,22 +357,30 @@
 
         @php
             $searchUrl = $defendantSearchUrl ?? url('/admin/defendant-search');
-            $toInitialEdit = function ($key, $fallback) use ($hearing) {
+            $toInitialEdit = function ($key, $registryKey, $fallback) use ($hearing) {
                 $arr = old($key, null);
+                $registries = old($registryKey, null);
+                if ($registries !== null && !is_array($registries)) $registries = [];
                 if ($arr !== null && is_array($arr)) {
-                    return collect($arr)->map(fn($n) => ['name' => $n, 'registry' => ''])->values();
+                    $r = is_array($registries) ? $registries : (array)($hearing->{$registryKey} ?? []);
+                    return collect($arr)->values()->map(function ($n, $i) use ($r) {
+                        return ['name' => $n, 'registry' => trim((string)($r[$i] ?? ''))];
+                    })->values();
                 }
                 $s = $fallback ? (old($fallback, $hearing->$fallback ?? '') ?? '') : '';
                 if (!is_string($s)) $s = '';
                 $arr = $s === '' ? [] : array_values(array_filter(array_map('trim', preg_split('/[\n,]+/', $s))));
-                return collect($arr)->map(fn($n) => ['name' => $n, 'registry' => ''])->values();
+                $r = (array)($hearing->{$registryKey} ?? []);
+                return collect($arr)->values()->map(function ($n, $i) use ($r) {
+                    return ['name' => $n, 'registry' => trim((string)($r[$i] ?? ''))];
+                })->values();
             };
-            $initialVictimsEdit = $toInitialEdit('victim_names', 'victim_name');
-            $initialVictimLegalRepsEdit = $toInitialEdit('victim_legal_rep_names', 'victim_legal_rep');
-            $initialWitnessesEdit = $toInitialEdit('witness_names', 'witnesses');
-            $initialExpertsEdit = $toInitialEdit('expert_names', 'experts');
-            $initialCivilPlaintiffsEdit = $toInitialEdit('civil_plaintiff_names', 'civil_plaintiff');
-            $initialCivilDefendantsEdit = $toInitialEdit('civil_defendant_names', 'civil_defendant');
+            $initialVictimsEdit = $toInitialEdit('victim_names', 'victim_registries', 'victim_name');
+            $initialVictimLegalRepsEdit = $toInitialEdit('victim_legal_rep_names', 'victim_legal_rep_registries', 'victim_legal_rep');
+            $initialWitnessesEdit = $toInitialEdit('witness_names', 'witness_registries', 'witnesses');
+            $initialExpertsEdit = $toInitialEdit('expert_names', 'expert_registries', 'experts');
+            $initialCivilPlaintiffsEdit = $toInitialEdit('civil_plaintiff_names', 'civil_plaintiff_registries', 'civil_plaintiff');
+            $initialCivilDefendantsEdit = $toInitialEdit('civil_defendant_names', 'civil_defendant_registries', 'civil_defendant');
         @endphp
 
         @include('hearings.partials.person-search-row', [
@@ -382,6 +390,7 @@
             'buttonLabel' => 'Хохирогч нэмэх',
             'modalTitle' => 'Хохирогч оруулах',
             'searchUrl' => $searchUrl,
+            'registryKey' => 'victim_registries',
         ])
         @include('hearings.partials.person-search-row', [
             'initial' => $initialVictimLegalRepsEdit,
@@ -390,6 +399,7 @@
             'buttonLabel' => 'Хохирогчийн хууль ёсны төлөөлөгч нэмэх',
             'modalTitle' => 'Хохирогчийн хууль ёсны төлөөлөгч оруулах',
             'searchUrl' => $searchUrl,
+            'registryKey' => 'victim_legal_rep_registries',
         ])
 
         {{-- Таслан сэргийлэх + Улсын яллагч --}}
@@ -882,6 +892,7 @@
                     'buttonLabel' => 'Гэрч нэмэх',
                     'modalTitle' => 'Гэрч оруулах',
                     'searchUrl' => $searchUrl,
+                    'registryKey' => 'witness_registries',
                 ])
             </div>
 
@@ -902,6 +913,7 @@
                     'buttonLabel' => 'Иргэний нэхэмжлэгч нэмэх',
                     'modalTitle' => 'Иргэний нэхэмжлэгч оруулах',
                     'searchUrl' => $searchUrl,
+                    'registryKey' => 'civil_plaintiff_registries',
                 ])
             </div>
 
@@ -913,6 +925,7 @@
                     'buttonLabel' => 'Иргэний хариуцагч нэмэх',
                     'modalTitle' => 'Иргэний хариуцагч оруулах',
                     'searchUrl' => $searchUrl,
+                    'registryKey' => 'civil_defendant_registries',
                 ])
             </div>
 

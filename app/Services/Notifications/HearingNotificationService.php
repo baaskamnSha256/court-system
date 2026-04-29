@@ -49,9 +49,7 @@ class HearingNotificationService
 
         foreach ($payload['recipients'] as $recipient) {
             $regnum = $recipient['regnum'] ?? null;
-            $civilId = $recipient['civil_id'] ?? null;
-
-            if (empty($regnum) && empty($civilId)) {
+            if (empty($regnum)) {
                 continue;
             }
 
@@ -63,7 +61,7 @@ class HearingNotificationService
                     'Notification' => $payload['message'],
                 ],
                 $regnum,
-                $civilId,
+                null,
                 [
                     'hearing_id' => $hearing->id,
                     'action' => $action,
