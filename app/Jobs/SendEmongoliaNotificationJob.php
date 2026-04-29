@@ -120,7 +120,10 @@ class SendEmongoliaNotificationJob implements ShouldQueue
 
         $apiStatus = (int) ($response->json('status') ?? 0);
         $apiMessage = (string) ($response->json('Message') ?? $response->json('message') ?? '');
-        $requestId = (string) ($response->json('RequestId') ?? $response->json('requestId') ?? '');
+        $requestId = (string) ($response->json('RequestId')
+            ?? $response->json('requestId')
+            ?? $response->json('requestid')
+            ?? '');
 
         $logContext = [
             'channel' => 'emongolia_notification',
@@ -143,6 +146,13 @@ class SendEmongoliaNotificationJob implements ShouldQueue
         $isSuccess = $response->successful() && (! $hasApiStatus || $apiStatus === 200);
 
         if (! $isSuccess) {
+            $statusCode = (int) ($response->json('status') ?? 0);
+            if ($statusCode === 701) {
+                Log::warning('Emongolia notification: recipient not registered.', $logContext + ['response_body' => $truncated]);
+
+                return;
+            }
+
             Log::warning('Emongolia notification: амжилтгүй хариу.', $logContext + ['response_body' => $truncated]);
 
             if (in_array($response->status(), [408, 429, 500, 502, 503, 504], true)) {
