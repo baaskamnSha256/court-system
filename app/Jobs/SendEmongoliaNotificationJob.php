@@ -123,12 +123,19 @@ class SendEmongoliaNotificationJob implements ShouldQueue
         $requestId = (string) ($response->json('RequestId') ?? $response->json('requestId') ?? '');
 
         $logContext = [
+            'channel' => 'emongolia_notification',
             'http_status' => $response->status(),
             'api_status' => $apiStatus,
             'api_message' => $apiMessage,
             'request_id' => $requestId,
             'regnum' => $this->regnum,
             'civilId' => $this->civilId,
+            'title' => $this->title,
+            'payload' => [
+                'regnum' => $payload['regnum'] ?? null,
+                'civilId' => $payload['civilId'] ?? null,
+                'body_channels' => array_keys((array) ($payload['body'] ?? [])),
+            ],
             'context' => $this->context,
         ];
 
@@ -136,7 +143,7 @@ class SendEmongoliaNotificationJob implements ShouldQueue
         $isSuccess = $response->successful() && (! $hasApiStatus || $apiStatus === 200);
 
         if (! $isSuccess) {
-            Log::warning('Emongolia notification: амжилтгүй хариу.', $logContext + ['body' => $truncated]);
+            Log::warning('Emongolia notification: амжилтгүй хариу.', $logContext + ['response_body' => $truncated]);
 
             if (in_array($response->status(), [408, 429, 500, 502, 503, 504], true)) {
                 $this->release($this->backoff);
@@ -145,7 +152,7 @@ class SendEmongoliaNotificationJob implements ShouldQueue
             return;
         }
 
-        Log::info('Emongolia notification илгээгдлээ.', $logContext);
+        Log::info('Emongolia notification илгээгдлээ.', $logContext + ['response_body' => $truncated]);
     }
 
     public function failed(Throwable $e): void
