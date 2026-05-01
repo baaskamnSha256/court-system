@@ -18,22 +18,22 @@ class HearingNotificationPayloadBuilder
     public function build(Hearing $hearing, string $action = 'created'): array
     {
         $title = $action === 'updated'
-            ? 'Шүүх хурал шинэчлэгдлээ'
-            : 'Шүүх хурал товлогдлоо';
+            ? 'Шүүх хуралдааны зар шинэчлэгдлээ'
+            : 'Шүүх хуралдааны зар товлогдлоо';
 
         $date = $hearing->hearing_date?->format('Y-m-d') ?? optional($hearing->start_at)->format('Y-m-d') ?? '—';
-        $time = optional($hearing->start_at)->format('H:i')
-            ?? ($hearing->hour !== null && $hearing->minute !== null ? sprintf('%02d:%02d', $hearing->hour, $hearing->minute) : '—');
         $caseNo = $hearing->case_no ?: '—';
         $courtroom = $hearing->courtroom ?: '—';
+        $hour = $hearing->hour ?? optional($hearing->start_at)->format('H') ?? '—';
+        $minute = $hearing->minute ?? optional($hearing->start_at)->format('i') ?? '—';
 
         $message = sprintf(
-            "Шүүх хуралдааны зар:\n\nХэрэг № %s\nОгноо: %s\nЦаг: %s\nТанхим: %s\n\nТа хурлын цагаас 30 минутын өмнө ирнэ үү.\nМэдээлэл лавлагаа: %d",
+            "%s дугаартай хэргийн {{role}} та {{role_id}} %s-нд Баянзүрх, Сүхбаатар, Чингэлтэй дүүргийн эрүүгийн хэргийн анхан шатны Тойргийн шүүхийн /Сансар КТМС-ийн ард/ байранд %s танхимд %s цаг %s минутанд ирж шүүх хуралдаанд оролцоно уу.\nТа хурлын цагаас 30 минутын өмнө ирсэн байхыг анхаарна уу.\nМэдээлэл лавлагаа: 11-458240",
             $caseNo,
             $date,
-            $time,
             $courtroom,
-            (int) $hearing->id
+            $hour,
+            $minute
         );
 
         return [

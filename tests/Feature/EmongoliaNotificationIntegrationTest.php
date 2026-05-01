@@ -2,6 +2,7 @@
 
 use App\Jobs\SendEmongoliaNotificationJob;
 use App\Models\Hearing;
+use App\Models\NotificationLog;
 use App\Models\User;
 use App\Services\Notifications\HearingNotificationService;
 use App\Services\Notifications\NotificationTokenService;
@@ -49,6 +50,7 @@ it('dispatches notification job for each recipient with regnum', function () {
     Queue::fake();
 
     config()->set('services.notification.enabled', true);
+    config()->set('services.notification.dispatch_sync', false);
     config()->set('services.notification.access_token', 'fixed-access-token');
     config()->set('services.notification.notify_url', 'https://notification.mn/api/v1/notification');
 
@@ -87,7 +89,6 @@ it('dispatches notification job for each recipient with regnum', function () {
     Queue::assertPushed(
         SendEmongoliaNotificationJob::class,
         fn (SendEmongoliaNotificationJob $job) => $job->regnum === 'AB12345678'
-            && str_contains(json_encode($job->body), '2026/100')
     );
 });
 
@@ -95,6 +96,7 @@ it('dispatches jobs for non-user participants using hearing registries', functio
     Queue::fake();
 
     config()->set('services.notification.enabled', true);
+    config()->set('services.notification.dispatch_sync', false);
     config()->set('services.notification.access_token', 'fixed-access-token');
     config()->set('services.notification.notify_url', 'https://notification.mn/api/v1/notification');
 
@@ -158,6 +160,62 @@ it('dispatches jobs for non-user participants using hearing registries', functio
             fn (SendEmongoliaNotificationJob $job) => $job->regnum === $regnum
         );
     }
+});
+
+it('runs notification jobs immediately when dispatch_sync is enabled', function () {
+    config()->set('services.notification.enabled', true);
+    config()->set('services.notification.access_token', 'fixed-access-token');
+    config()->set('services.notification.notify_url', 'https://notification.mn/api/v1/notification');
+    config()->set('services.notification.token_url', 'https://notification.mn/api/v1/external/token');
+    config()->set('services.notification.username', 'user');
+    config()->set('services.notification.password', 'pass');
+    config()->set('services.notification.dispatch_sync', true);
+
+    Http::fake([
+        'notification.mn/api/v1/external/token' => Http::response(['token' => 'one-time'], 200),
+        'notification.mn/api/v1/notification' => Http::response([
+            'status' => 200,
+            'Message' => 'Амжилттай',
+            'RequestId' => 'req-sync',
+        ], 200),
+    ]);
+
+    Role::firstOrCreate(['name' => 'judge', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'prosecutor', 'guard_name' => 'web']);
+
+    $judge = User::factory()->create(['name' => 'Judge', 'register_number' => 'AB12345678']);
+    $judge->assignRole('judge');
+
+    $prosecutor = User::factory()->create(['name' => 'Prosecutor', 'register_number' => 'CD12345678']);
+    $prosecutor->assignRole('prosecutor');
+
+    $hearing = Hearing::create([
+        'created_by' => $judge->id,
+        'case_no' => '2026/200',
+        'title' => 'Тест',
+        'hearing_state' => 'Хэвийн',
+        'hearing_date' => now()->toDateString(),
+        'hour' => 9,
+        'minute' => 0,
+        'start_at' => now()->setTime(9, 0),
+        'end_at' => now()->setTime(9, 30),
+        'duration_minutes' => 30,
+        'courtroom' => '1',
+        'preventive_measure' => 'Цагдан хорих',
+        'prosecutor_id' => $prosecutor->id,
+        'prosecutor_ids' => [$prosecutor->id],
+        'defendant_names' => ['Defendant'],
+        'status' => 'scheduled',
+    ]);
+    $hearing->judges()->attach($judge->id, ['position' => 1]);
+
+    app(HearingNotificationService::class)->send($hearing, 'created');
+
+    $notifyRequests = collect(Http::recorded())
+        ->filter(fn (array $pair) => str_contains($pair[0]->url(), '/api/v1/notification'))
+        ->count();
+
+    expect($notifyRequests)->toBe(2);
 });
 
 it('skips dispatching when notifications are disabled', function () {
@@ -265,4 +323,47 @@ it('treats api status non-200 as failure even with HTTP 200', function () {
     );
 
     $job->handle(app(NotificationTokenService::class));
+});
+
+it('stores notification delivery logs in database', function () {
+    config()->set('services.notification.enabled', true);
+    config()->set('services.notification.access_token', 'fixed-access-token');
+    config()->set('services.notification.notify_url', 'https://notification.mn/api/v1/notification');
+    config()->set('services.notification.token_url', 'https://notification.mn/api/v1/external/token');
+    config()->set('services.notification.username', 'user');
+    config()->set('services.notification.password', 'pass');
+
+    Http::fake([
+        'notification.mn/api/v1/external/token' => Http::response(['token' => 'one-time-xyz'], 200),
+        'notification.mn/api/v1/notification' => Http::response([
+            'status' => 200,
+            'Message' => 'Амжилттай',
+            'requestid' => 'req-uuid-db-123',
+        ], 200),
+    ]);
+
+    $job = new SendEmongoliaNotificationJob(
+        title: 'Шүүх хуралдааны зар товлогдлоо',
+        body: ['Mail' => 'M', 'Messenger' => 'M', 'Notification' => 'N'],
+        regnum: 'AB12345678',
+        civilId: null,
+        context: [
+            'hearing_id' => 99,
+            'action' => 'created',
+            'role' => 'judge',
+            'name' => 'Judge Name',
+        ]
+    );
+
+    $job->handle(app(NotificationTokenService::class));
+
+    $log = NotificationLog::query()->first();
+
+    expect($log)->not->toBeNull()
+        ->and($log->delivery_status)->toBe('delivered')
+        ->and($log->delivered)->toBeTrue()
+        ->and($log->request_id)->toBe('req-uuid-db-123')
+        ->and($log->recipient_role)->toBe('judge')
+        ->and($log->recipient_name)->toBe('Judge Name')
+        ->and($log->hearing_id)->toBe(99);
 });

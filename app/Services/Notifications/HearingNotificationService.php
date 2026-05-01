@@ -44,6 +44,7 @@ class HearingNotificationService
             return;
         }
 
+        $dispatchSync = (bool) ($cfg['dispatch_sync'] ?? false);
         $connection = $cfg['queue_connection'] ?? null;
         $queue = $cfg['queue_name'] ?? null;
 
@@ -55,21 +56,37 @@ class HearingNotificationService
 
             $recipientMessage = $this->buildRecipientMessage($payload['message'], $recipient);
 
+            $jobContext = [
+                'hearing_id' => $hearing->id,
+                'action' => $action,
+                'role' => $recipient['role'] ?? null,
+                'name' => $recipient['name'] ?? null,
+            ];
+
+            $jobBody = [
+                'Mail' => $recipientMessage,
+                'Messenger' => $recipientMessage,
+                'Notification' => $recipientMessage,
+            ];
+
+            if ($dispatchSync) {
+                SendEmongoliaNotificationJob::dispatchSync(
+                    $payload['title'],
+                    $jobBody,
+                    $regnum,
+                    null,
+                    $jobContext
+                );
+
+                continue;
+            }
+
             $job = SendEmongoliaNotificationJob::dispatch(
                 $payload['title'],
-                [
-                    'Mail' => $recipientMessage,
-                    'Messenger' => $recipientMessage,
-                    'Notification' => $recipientMessage,
-                ],
+                $jobBody,
                 $regnum,
                 null,
-                [
-                    'hearing_id' => $hearing->id,
-                    'action' => $action,
-                    'role' => $recipient['role'] ?? null,
-                    'name' => $recipient['name'] ?? null,
-                ]
+                $jobContext
             );
 
             if (! empty($connection)) {
@@ -85,17 +102,13 @@ class HearingNotificationService
     private function buildRecipientMessage(string $baseMessage, array $recipient): string
     {
         $role = $this->roleLabel((string) ($recipient['role'] ?? ''));
-        $name = trim((string) ($recipient['name'] ?? ''));
+        $roleId = trim((string) ($recipient['name'] ?? ''));
 
-        if ($role === '' && $name === '') {
-            return $baseMessage;
-        }
-
-        if ($role !== '' && $name !== '') {
-            return $role.' '.$name." та\n".$baseMessage;
-        }
-
-        return ($role !== '' ? $role : $name)." та\n".$baseMessage;
+        return str_replace(
+            ['{{role}}', '{{role_id}}'],
+            [$role !== '' ? $role : 'Оролцогч', $roleId !== '' ? $roleId : '—'],
+            $baseMessage
+        );
     }
 
     private function roleLabel(string $role): string

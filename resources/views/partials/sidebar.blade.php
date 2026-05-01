@@ -62,6 +62,10 @@
             <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2V7m3 10v-4m3 8H6a2 2 0 01-2-2V5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2z"/></svg>
             Тайлан
         </a>
+        <a href="{{ route('admin.notifications.logs.index') }}" class="{{ str_starts_with($current, 'admin.notifications.logs') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/50 hover:text-white' }} flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors pl-6">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/></svg>
+            Мэдэгдлийн лог
+        </a>
     @endhasanyrole
 
     @role('judge')

@@ -82,6 +82,7 @@ return [
         'timeout' => (int) env('NOTIFICATION_TIMEOUT', 15),
         'queue_connection' => env('NOTIFICATION_QUEUE_CONNECTION'),
         'queue_name' => env('NOTIFICATION_QUEUE_NAME'),
+        'dispatch_sync' => filter_var(env('NOTIFICATION_DISPATCH_SYNC', false), FILTER_VALIDATE_BOOL),
     ],
 
 ];

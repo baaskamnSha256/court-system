@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Services\Notifications\NotificationLogService;
 use App\Services\Notifications\NotificationTokenService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -42,8 +43,10 @@ class SendEmongoliaNotificationJob implements ShouldQueue
         public readonly array $context = []
     ) {}
 
-    public function handle(NotificationTokenService $tokenService): void
+    public function handle(NotificationTokenService $tokenService, ?NotificationLogService $notificationLogService = null): void
     {
+        $notificationLogService ??= app(NotificationLogService::class);
+
         $cfg = config('services.notification', []);
         if (! (bool) ($cfg['enabled'] ?? false)) {
             return;
@@ -55,12 +58,22 @@ class SendEmongoliaNotificationJob implements ShouldQueue
 
         if ($notifyUrl === '' || $accessToken === '') {
             Log::warning('Emongolia notification тохиргоо дутуу тул илгээгдсэнгүй.', $this->context);
+            $notificationLogService->store($this->buildLogData(
+                deliveryStatus: 'skipped_config',
+                delivered: false,
+                apiMessage: 'Missing notification configuration'
+            ));
 
             return;
         }
 
         if (empty($this->regnum) && empty($this->civilId)) {
             Log::info('Emongolia notification: regnum/civilId хоёулаа хоосон тул алгаслаа.', $this->context);
+            $notificationLogService->store($this->buildLogData(
+                deliveryStatus: 'skipped_missing_recipient',
+                delivered: false,
+                apiMessage: 'Both regnum and civilId are empty'
+            ));
 
             return;
         }
@@ -72,6 +85,11 @@ class SendEmongoliaNotificationJob implements ShouldQueue
                 'error' => $e->getMessage(),
                 'context' => $this->context,
             ]);
+            $notificationLogService->store($this->buildLogData(
+                deliveryStatus: 'token_error',
+                delivered: false,
+                apiMessage: $e->getMessage()
+            ));
 
             $this->release($this->backoff);
 
@@ -111,6 +129,12 @@ class SendEmongoliaNotificationJob implements ShouldQueue
                 'error' => $e->getMessage(),
                 'context' => $this->context,
             ]);
+            $notificationLogService->store($this->buildLogData(
+                payload: $payload,
+                deliveryStatus: 'request_error',
+                delivered: false,
+                apiMessage: $e->getMessage()
+            ));
 
             throw $e;
         }
@@ -127,12 +151,15 @@ class SendEmongoliaNotificationJob implements ShouldQueue
 
         $logContext = [
             'channel' => 'emongolia_notification',
+            'delivery_status' => 'unknown',
             'http_status' => $response->status(),
             'api_status' => $apiStatus,
             'api_message' => $apiMessage,
             'request_id' => $requestId,
             'regnum' => $this->regnum,
             'civilId' => $this->civilId,
+            'recipient_role' => $this->context['role'] ?? null,
+            'recipient_name' => $this->context['name'] ?? null,
             'title' => $this->title,
             'payload' => [
                 'regnum' => $payload['regnum'] ?? null,
@@ -148,12 +175,42 @@ class SendEmongoliaNotificationJob implements ShouldQueue
         if (! $isSuccess) {
             $statusCode = (int) ($response->json('status') ?? 0);
             if ($statusCode === 701) {
-                Log::warning('Emongolia notification: recipient not registered.', $logContext + ['response_body' => $truncated]);
+                $context = $logContext + [
+                    'delivery_status' => 'not_registered',
+                    'delivered' => false,
+                    'response_body' => $truncated,
+                ];
+                Log::warning('Emongolia notification delivery result.', $context);
+                $notificationLogService->store($this->buildLogData(
+                    payload: $payload,
+                    deliveryStatus: 'not_registered',
+                    delivered: false,
+                    httpStatus: $response->status(),
+                    apiStatus: $apiStatus,
+                    apiMessage: $apiMessage,
+                    requestId: $requestId,
+                    responseBody: $truncated
+                ));
 
                 return;
             }
 
-            Log::warning('Emongolia notification: амжилтгүй хариу.', $logContext + ['response_body' => $truncated]);
+            $context = $logContext + [
+                'delivery_status' => 'failed',
+                'delivered' => false,
+                'response_body' => $truncated,
+            ];
+            Log::warning('Emongolia notification delivery result.', $context);
+            $notificationLogService->store($this->buildLogData(
+                payload: $payload,
+                deliveryStatus: 'failed',
+                delivered: false,
+                httpStatus: $response->status(),
+                apiStatus: $apiStatus,
+                apiMessage: $apiMessage,
+                requestId: $requestId,
+                responseBody: $truncated
+            ));
 
             if (in_array($response->status(), [408, 429, 500, 502, 503, 504], true)) {
                 $this->release($this->backoff);
@@ -162,7 +219,21 @@ class SendEmongoliaNotificationJob implements ShouldQueue
             return;
         }
 
-        Log::info('Emongolia notification илгээгдлээ.', $logContext + ['response_body' => $truncated]);
+        Log::info('Emongolia notification delivery result.', $logContext + [
+            'delivery_status' => 'delivered',
+            'delivered' => true,
+            'response_body' => $truncated,
+        ]);
+        $notificationLogService->store($this->buildLogData(
+            payload: $payload,
+            deliveryStatus: 'delivered',
+            delivered: true,
+            httpStatus: $response->status(),
+            apiStatus: $apiStatus,
+            apiMessage: $apiMessage,
+            requestId: $requestId,
+            responseBody: $truncated
+        ));
     }
 
     public function failed(Throwable $e): void
@@ -173,5 +244,62 @@ class SendEmongoliaNotificationJob implements ShouldQueue
             'civilId' => $this->civilId,
             'context' => $this->context,
         ]);
+
+        app(NotificationLogService::class)->store($this->buildLogData(
+            deliveryStatus: 'job_failed',
+            delivered: false,
+            apiMessage: $e->getMessage()
+        ));
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     * @return array{
+     *   hearing_id:int|null,
+     *   action:string|null,
+     *   recipient_role:string|null,
+     *   recipient_name:string|null,
+     *   regnum:string|null,
+     *   civil_id:string|null,
+     *   title:string,
+     *   delivery_status:string,
+     *   delivered:bool,
+     *   http_status:int|null,
+     *   api_status:int|null,
+     *   api_message:string|null,
+     *   request_id:string|null,
+     *   payload:array<string, mixed>|null,
+     *   context:array<string, mixed>,
+     *   response_body:string|null
+     * }
+     */
+    private function buildLogData(
+        ?array $payload = null,
+        string $deliveryStatus = 'unknown',
+        bool $delivered = false,
+        ?int $httpStatus = null,
+        ?int $apiStatus = null,
+        ?string $apiMessage = null,
+        ?string $requestId = null,
+        ?string $responseBody = null
+    ): array {
+        return [
+            'hearing_id' => isset($this->context['hearing_id']) ? (int) $this->context['hearing_id'] : null,
+            'action' => isset($this->context['action']) ? (string) $this->context['action'] : null,
+            'recipient_role' => isset($this->context['role']) ? (string) $this->context['role'] : null,
+            'recipient_name' => isset($this->context['name']) ? (string) $this->context['name'] : null,
+            'regnum' => $this->regnum,
+            'civil_id' => $this->civilId,
+            'title' => $this->title,
+            'delivery_status' => $deliveryStatus,
+            'delivered' => $delivered,
+            'http_status' => $httpStatus,
+            'api_status' => $apiStatus,
+            'api_message' => $apiMessage,
+            'request_id' => $requestId,
+            'payload' => $payload,
+            'context' => $this->context,
+            'response_body' => $responseBody,
+        ];
     }
 }

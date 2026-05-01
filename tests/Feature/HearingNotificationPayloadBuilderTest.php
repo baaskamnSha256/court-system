@@ -57,8 +57,9 @@ it('builds payload with hearing participants', function () {
 
     $payload = app(HearingNotificationPayloadBuilder::class)->build($hearing, 'created');
 
-    expect($payload['title'])->toBe('Шүүх хурал товлогдлоо')
-        ->and($payload['message'])->toContain('Хэрэг № 2026/001')
+    expect($payload['title'])->toBe('Шүүх хуралдааны зар товлогдлоо')
+        ->and($payload['message'])->toContain('2026/001 дугаартай хэргийн {{role}} та {{role_id}}')
+        ->and($payload['message'])->toContain('A танхимд 10 цаг 30 минутанд')
         ->and($payload['recipients'])->toHaveCount(3)
         ->and(collect($payload['recipients'])->pluck('name')->all())
         ->toContain('Judge One', 'Prosecutor One', 'Lawyer One');

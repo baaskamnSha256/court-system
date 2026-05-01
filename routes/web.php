@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\HearingPrintController;
 use App\Http\Controllers\Admin\HearingsController as AdminHearings;
 use App\Http\Controllers\Admin\MatterCategoriesController;
 use App\Http\Controllers\Admin\NotesHandoverController;
+use App\Http\Controllers\Admin\NotificationLogsController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TextMaskController;
 use App\Http\Controllers\Admin\UsersController;
@@ -101,6 +102,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/settings/reports', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reports.index');
         Route::get('/settings/reports/excel', [\App\Http\Controllers\Admin\ReportController::class, 'download'])->name('reports.download');
         Route::get('/settings/reports/excel-defendant-details', [\App\Http\Controllers\Admin\ReportController::class, 'downloadDefendantDetails'])->name('reports.download.defendant-details');
+        Route::get('/notifications/logs', [NotificationLogsController::class, 'index'])->name('notifications.logs.index');
         Route::get('/settings/matter-categories', [MatterCategoriesController::class, 'index'])->name('matter-categories.index');
         Route::post('/settings/matter-categories', [MatterCategoriesController::class, 'store'])->name('matter-categories.store');
         Route::delete('/settings/matter-categories/{matterCategory}', [MatterCategoriesController::class, 'destroy'])->name('matter-categories.destroy');
