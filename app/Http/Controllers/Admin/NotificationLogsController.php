@@ -32,7 +32,7 @@ class NotificationLogsController extends Controller
         }
 
         return view('admin.notifications.logs.index', [
-            'logs' => $query->paginate(30)->withQueryString(),
+            'logs' => $query->paginate(50)->withQueryString(),
             'statuses' => NotificationLog::query()
                 ->select('delivery_status')
                 ->whereNotNull('delivery_status')
