@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NotificationLog extends Model
 {
@@ -34,4 +35,9 @@ class NotificationLog extends Model
         'context' => 'array',
         'sent_at' => 'datetime',
     ];
+
+    public function hearing(): BelongsTo
+    {
+        return $this->belongsTo(Hearing::class);
+    }
 }

@@ -10,7 +10,9 @@ class NotificationLogsController extends Controller
 {
     public function index(Request $request)
     {
-        $query = NotificationLog::query()->latest('id');
+        $query = NotificationLog::query()
+            ->with('hearing:id,case_no')
+            ->latest('id');
 
         if ($request->filled('delivery_status')) {
             $query->where('delivery_status', $request->string('delivery_status'));

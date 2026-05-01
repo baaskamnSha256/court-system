@@ -51,7 +51,7 @@
                 <thead class="bg-slate-100 text-slate-700">
                     <tr>
                         <th class="px-3 py-2 text-left">Огноо</th>
-                        <th class="px-3 py-2 text-left">Хурал</th>
+                        <th class="px-3 py-2 text-left">Хэргийн дугаар</th>
                         <th class="px-3 py-2 text-left">Оролцогч</th>
                         <th class="px-3 py-2 text-left">Регистр</th>
                         <th class="px-3 py-2 text-left">Төлөв</th>
@@ -64,7 +64,7 @@
                     @forelse($logs as $log)
                         <tr>
                             <td class="px-3 py-2 whitespace-nowrap text-slate-600">{{ optional($log->sent_at)->format('Y-m-d H:i:s') ?? $log->created_at->format('Y-m-d H:i:s') }}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-slate-700">{{ $log->hearing_id ?? '—' }}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-slate-700">{{ $log->hearing?->case_no ?? '—' }}</td>
                             <td class="px-3 py-2">
                                 <div class="font-medium text-slate-800">{{ $log->recipient_role ?? '—' }}</div>
                                 <div class="text-xs text-slate-500">{{ $log->recipient_name ?? '—' }}</div>
@@ -101,7 +101,7 @@
                                         <button
                                             type="button"
                                             class="rounded border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100"
-                                            onclick="navigator.clipboard.writeText('{{ $log->request_id }}')"
+                                            onclick="copyRequestId({{ \Illuminate\Support\Js::from($log->request_id) }})"
                                         >
                                             Хуулах
                                         </button>
@@ -125,4 +125,53 @@
             {{ $logs->links() }}
         </div>
     </div>
+
+    <div
+        id="copy-toast"
+        class="pointer-events-none fixed bottom-4 right-4 z-50 hidden rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white shadow-lg"
+        role="status"
+        aria-live="polite"
+    >
+        Copied
+    </div>
+
+    <script>
+        let copyToastTimer = null;
+
+        function showCopyToast() {
+            const toast = document.getElementById('copy-toast');
+            if (!toast) {
+                return;
+            }
+
+            toast.classList.remove('hidden');
+
+            if (copyToastTimer !== null) {
+                clearTimeout(copyToastTimer);
+            }
+
+            copyToastTimer = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 1200);
+        }
+
+        function copyRequestId(requestId) {
+            if (!requestId) {
+                return;
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(requestId).then(showCopyToast);
+                return;
+            }
+
+            const input = document.createElement('input');
+            input.value = requestId;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            showCopyToast();
+        }
+    </script>
 @endsection
