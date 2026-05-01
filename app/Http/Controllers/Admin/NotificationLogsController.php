@@ -18,8 +18,9 @@ class NotificationLogsController extends Controller
             $query->where('delivery_status', $request->string('delivery_status'));
         }
 
-        if ($request->filled('hearing_id')) {
-            $query->where('hearing_id', (int) $request->input('hearing_id'));
+        if ($request->filled('case_no')) {
+            $caseNo = $request->string('case_no')->trim();
+            $query->whereHas('hearing', fn ($hearingQuery) => $hearingQuery->where('case_no', 'like', '%'.$caseNo.'%'));
         }
 
         if ($request->filled('regnum')) {

@@ -7,9 +7,9 @@
         <form method="GET" class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-5">
             <input
                 type="text"
-                name="hearing_id"
-                value="{{ request('hearing_id') }}"
-                placeholder="Хурал ID"
+                name="case_no"
+                value="{{ request('case_no') }}"
+                placeholder="Хэргийн дугаар"
                 class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
             >
 
