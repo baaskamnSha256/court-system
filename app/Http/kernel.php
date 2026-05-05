@@ -33,7 +33,7 @@ class Kernel extends HttpKernel
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-            \App\Http\Middleware\VerifyCsrfToken::class,
+            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
 
@@ -63,16 +63,6 @@ class Kernel extends HttpKernel
         // Spatie role middleware
         'role' => \Spatie\Permission\Middlewares\RoleMiddleware::class,
 
-
-        
         'permission' => \Spatie\Permission\Middlewares\PermissionMiddleware::class,
-    ];
-
-    protected $middlewareGroups = [
-    'web' => [
-        // Өмнөх middleware-үүд...
-        \App\Http\Middleware\RedirectIfRole::class,
-        
-     ],
     ];
 }

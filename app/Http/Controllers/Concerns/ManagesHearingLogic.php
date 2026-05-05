@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\Hearing;
 use App\Models\User;
+use App\Services\Audit\ActivityLogService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -306,5 +307,18 @@ trait ManagesHearingLogic
         }
 
         $hearing->judges()->sync($sync);
+    }
+
+    protected function logHearingActivity(string $action, string $description, Hearing $hearing): void
+    {
+        app(ActivityLogService::class)->record(
+            $action,
+            $description,
+            $hearing,
+            [
+                'hearing_id' => $hearing->id,
+                'case_no' => $hearing->case_no,
+            ]
+        );
     }
 }

@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ForceAppUrlFromRequest::class,
         ]);
 
+        $middleware->web(append: [
+            \App\Http\Middleware\LogAuthenticatedActivity::class,
+            \App\Http\Middleware\RedirectIfRole::class,
+        ]);
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,

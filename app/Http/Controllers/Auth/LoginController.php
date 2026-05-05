@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\User;
+use App\Services\Audit\ActivityLogService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -105,6 +106,23 @@ class LoginController extends Controller
             $request->session()->flash('show_overdue_toast', true);
         }
 
+        if ($user === null) {
+            return redirect('/login');
+        }
+
+        $roleNames = $user->roles->pluck('name')->map(fn ($n) => (string) $n)->values()->all();
+        $roleLabel = $roleNames !== [] ? implode(', ', $roleNames) : 'эрхгүй';
+        app(ActivityLogService::class)->record(
+            'auth.login',
+            sprintf('Системд нэвтэрлээ (эрх: %s)', $roleLabel),
+            null,
+            [
+                'roles' => $roleNames,
+                'remember' => $request->boolean('remember'),
+            ],
+            (int) $user->getKey(),
+        );
+
         return redirect()->intended(route($redirectRoute));
     }
 
@@ -175,9 +193,27 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        $user?->loadMissing('roles');
+        $userId = $user?->getKey();
+        $roleNames = $user !== null
+            ? $user->roles->pluck('name')->map(fn ($n) => (string) $n)->values()->all()
+            : [];
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($userId !== null) {
+            $roleLabel = $roleNames !== [] ? implode(', ', $roleNames) : 'эрхгүй';
+            app(ActivityLogService::class)->record(
+                'auth.logout',
+                sprintf('Системээс гарлаа (эрх: %s)', $roleLabel),
+                null,
+                ['roles' => $roleNames],
+                (int) $userId,
+            );
+        }
 
         return redirect('/login');
     }

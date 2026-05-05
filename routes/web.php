@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogsController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
 use App\Http\Controllers\Admin\HearingPrintController;
 use App\Http\Controllers\Admin\HearingsController as AdminHearings;
@@ -103,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/settings/reports/excel', [\App\Http\Controllers\Admin\ReportController::class, 'download'])->name('reports.download');
         Route::get('/settings/reports/excel-defendant-details', [\App\Http\Controllers\Admin\ReportController::class, 'downloadDefendantDetails'])->name('reports.download.defendant-details');
         Route::get('/notifications/logs', [NotificationLogsController::class, 'index'])->name('notifications.logs.index');
+        Route::get('/activity-logs', [ActivityLogsController::class, 'index'])->name('activity-logs.index');
         Route::get('/settings/matter-categories', [MatterCategoriesController::class, 'index'])->name('matter-categories.index');
         Route::post('/settings/matter-categories', [MatterCategoriesController::class, 'store'])->name('matter-categories.store');
         Route::delete('/settings/matter-categories/{matterCategory}', [MatterCategoriesController::class, 'destroy'])->name('matter-categories.destroy');

@@ -513,6 +513,11 @@ class HearingsController extends Controller
         });
 
         $this->dispatchHearingNotification($hearing, 'created');
+        $this->logHearingActivity(
+            'hearing.created',
+            sprintf('Хурлын зар бүртгэлээ — хэрэг № %s', $hearing->case_no ?? '—'),
+            $hearing
+        );
 
         return redirect()
             ->route('admin.hearings.index')
@@ -713,6 +718,11 @@ class HearingsController extends Controller
         });
 
         $this->dispatchHearingNotification($hearing, 'updated');
+        $this->logHearingActivity(
+            'hearing.updated',
+            sprintf('Хурлын зар шинэчиллээ — хэрэг № %s', $hearing->case_no ?? '—'),
+            $hearing
+        );
 
         return redirect()
             ->route('admin.hearings.index')
@@ -724,6 +734,11 @@ class HearingsController extends Controller
      */
     public function destroy(Hearing $hearing)
     {
+        $this->logHearingActivity(
+            'hearing.deleted',
+            sprintf('Хурлын зар устгалаа — хэрэг № %s', $hearing->case_no ?? '—'),
+            $hearing
+        );
         $hearing->judges()->detach();
         $hearing->delete();
 
