@@ -86,6 +86,9 @@
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'clerk_id' => $activeClerkId,
+            'notes_decision_status' => $tab === 'decision_summary' && request()->filled('notes_decision_status')
+                ? request('notes_decision_status')
+                : null,
         ], fn ($v) => $v !== null && $v !== '');
     @endphp
 
@@ -146,6 +149,9 @@
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <form method="GET" action="{{ route('admin.reports.index') }}" class="flex flex-wrap items-end gap-3">
                 <input type="hidden" name="tab" value="{{ $tab }}">
+                @if(request()->filled('notes_decision_status'))
+                    <input type="hidden" name="notes_decision_status" value="{{ request('notes_decision_status') }}">
+                @endif
                 <div>
                     <label class="block text-xs font-medium text-slate-500 mb-1">Эхлэх огноо</label>
                     <input type="date" name="date_from" value="{{ $dateFrom }}"
@@ -170,9 +176,6 @@
                 </div>
             </form>
             <div class="text-xs text-slate-500">
-                - Энэ хэсэг нийт хурлын статистикаар гарна (нарийн бичгээр шүүхгүй).
-            </div>
-            <div class="text-xs text-slate-500">
                 - Excel дээд тал нь {{ number_format($exportLimit ?? 0) }} мөр.
             </div>
         </div>
@@ -181,6 +184,19 @@
             'decisionOptions' => $decisionOptions ?? [],
             'decisionCounts' => $decisionCounts ?? [],
             'decisionFilterBaseUrl' => $decisionFilterBaseUrl ?? null,
+            'activeDecisionFilter' => $decisionStatusFilter ?? null,
+            'totalScheduledHearingsInPeriod' => $totalScheduledHearingsInPeriod ?? ($summary['total'] ?? 0),
+            'totalScheduledHearingsUrl' => $totalScheduledHearingsUrl ?? null,
+            'totalScheduledHearingsDateFrom' => $dateFrom ?? null,
+            'totalScheduledHearingsDateTo' => $dateTo ?? null,
+        ])
+
+        @include('partials.widgets.report-decision-hearings-list', [
+            'decisionSummaryHearings' => $decisionSummaryHearings ?? null,
+            'decisionStatusFilterLabel' => $decisionStatusFilterLabel ?? null,
+            'dateFrom' => $dateFrom ?? null,
+            'dateTo' => $dateTo ?? null,
+            'matterNamesById' => $matterNamesById ?? collect(),
         ])
     @endif
 
@@ -283,10 +299,6 @@
                     <a href="{{ route('admin.reports.index', ['tab' => $tab]) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
                         Цэвэрлэх
                     </a>
-                    <a href="{{ route('admin.reports.download', $reportQuery) }}"
-                       class="inline-flex items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 transition-colors">
-                        Excel татах
-                    </a>
                     <a href="{{ route('admin.reports.download.defendant-details', $reportQuery) }}"
                        class="inline-flex items-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors">
                         Шүүгдэгчийн дэлгэрэнгүй файл
@@ -294,66 +306,10 @@
                 </div>
             </form>
             <div class="text-xs text-slate-500">
-                - Энэ хэсэг нийт хурлын статистикаар гарна (нарийн бичгээр шүүхгүй).
-            </div>
-            <div class="text-xs text-slate-500">
-                - Excel дээд тал нь {{ number_format($exportLimit ?? 0) }} мөр.
-            </div>
-            <div class="text-xs text-slate-500">
-                - Доорх хүснэгт нь «Шүүгдэгчийн дэлгэрэнгүй файл» Excel-ийн Sheet1 толгойн баганатай ижил нэр, ижил дараалалтай.
+                - «Шүүгдэгчийн дэлгэрэнгүй файл» татахад дээд тал нь {{ number_format($exportLimit ?? 0) }} мөр.
             </div>
         </div>
-        <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div class="text-xs text-slate-500 mb-1">Шүүгдэгчийн мөр</div>
-                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($defendantDetailRows ?? [])->count()) }}</div>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div class="text-xs text-slate-500 mb-1">Ялын төрлийн ангилал</div>
-                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($punishmentRows ?? [])->count()) }}</div>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div class="text-xs text-slate-500 mb-1">Тусгай шийдвэрийн ангилал</div>
-                <div class="text-2xl font-semibold text-slate-900 tabular-nums">{{ number_format(collect($specialOutcomeRows ?? [])->count()) }}</div>
-            </div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                <div class="text-sm font-semibold text-slate-800">Шүүгдэгчийн дэлгэрэнгүй (Excel-тэй ижил багана)</div>
-            </div>
-            <div class="overflow-x-auto">
-                @php
-                    $detailCols = $defendantDetailColumns ?? [];
-                    $detailColCount = max(count($detailCols), 1);
-                @endphp
-                <table class="w-full text-sm table-auto min-w-[1700px]">
-                    <thead>
-                        <tr class="bg-white border-b border-slate-200">
-                            @foreach($detailCols as $col)
-                                @php($thAlign = 'text-left')
-                                <th class="px-3 py-3 {{ $thAlign }} font-semibold text-slate-700 whitespace-normal break-words">{{ $col['label'] }}</th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($defendantDetailRows ?? [] as $row)
-                            <tr class="border-b border-slate-100 last:border-0 align-top">
-                                @foreach($detailCols as $col)
-                                    @php($cell = $row[$col['key']] ?? '')
-                                    <td class="px-3 py-3 text-slate-700 min-w-[100px] max-w-xs whitespace-normal break-words">
-                                        {{ ($cell === '' || $cell === null) ? '—' : $cell }}
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="{{ $detailColCount }}" class="px-4 py-6 text-center text-slate-500">Мэдээлэлгүй</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        @include('admin.reports._defendant_detail_table')
     @endif
 </div>
 @endsection

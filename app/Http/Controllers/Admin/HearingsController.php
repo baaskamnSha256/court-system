@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Concerns\ManagesHearingLogic;
+use App\Http\Controllers\Concerns\ScopesHearingsFromToday;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
@@ -16,14 +17,17 @@ use Illuminate\Validation\ValidationException;
 class HearingsController extends Controller
 {
     use ManagesHearingLogic;
+    use ScopesHearingsFromToday;
 
     public function index(Request $request)
     {
         $isHeadOfDepartment = auth()->user()?->hasRole('head_of_department');
 
         // Огноо → цаг → танхимаар эрэмбэлнэ (эхлээд өдөр, дараа нь цаг, эцэст нь танхим)
-        $query = Hearing::query()
-            ->with(['judges', 'prosecutor'])
+        $query = $this->applyHearingsVisibleFromToday(
+            Hearing::query()
+                ->with(['judges', 'prosecutor'])
+        )
             ->orderBy('start_at', 'asc')
             ->orderBy('courtroom', 'asc');
 
@@ -46,7 +50,7 @@ class HearingsController extends Controller
         $hearings = $query->paginate(20)->withQueryString();
 
         // Төлөвөөр хурал зарлагдсан тоо (дүн мэдээ)
-        $statsBase = Hearing::query();
+        $statsBase = $this->applyHearingsVisibleFromToday(Hearing::query());
         $countsByState = (clone $statsBase)
             ->selectRaw("COALESCE(hearing_state, 'Хэвийн') as state_key, count(*) as c")
             ->groupByRaw("COALESCE(hearing_state, 'Хэвийн')")
@@ -791,7 +795,7 @@ class HearingsController extends Controller
             ]);
         }
 
-        $duration = count($judgeIds) >= 3 ? 60 : 30;
+        $duration = $this->computeDurationMinutes($judgeIds);
 
         [$start, $end] = $this->buildStartEnd(
             $data['hearing_date'],

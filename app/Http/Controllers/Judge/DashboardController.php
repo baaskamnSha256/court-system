@@ -23,16 +23,10 @@ class DashboardController extends Controller
         $yearEnd = $today->copy()->endOfDay();
 
         $monthQuery = Hearing::query()
+            ->fromTodayOnwards($today)
             ->where(function ($q) use ($monthStart, $monthEnd) {
                 $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                     ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
-            })
-            ->whereHas('judges', fn ($q) => $q->where('users.id', $userId));
-
-        $yearQuery = Hearing::query()
-            ->where(function ($q) use ($yearStart, $yearEnd) {
-                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
-                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
             })
             ->whereHas('judges', fn ($q) => $q->where('users.id', $userId));
 
@@ -58,16 +52,19 @@ class DashboardController extends Controller
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        extract(HearingDashboardStatistics::decisionBreakdown($yearQuery), EXTR_SKIP);
+        $decisionStats = HearingDashboardStatistics::dashboardDecisionStats(
+            Hearing::query()->whereHas('judges', fn ($q) => $q->where('users.id', $userId)),
+            $today
+        );
 
-        return view('judge.dashboard', compact(
+        return view('judge.dashboard', array_merge(compact(
             'hearingsToday',
             'today',
             'hearingsCountByDay',
-            'decisionOptions',
-            'decisionCounts',
+            'yearStart',
+            'yearEnd',
             'monthStart',
             'monthEnd'
-        ));
+        ), $decisionStats));
     }
 }

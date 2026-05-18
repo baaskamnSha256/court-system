@@ -25,11 +25,12 @@ class ReportDateFilterService
 
         $applyClerkFilter = $tab === 'notes_handover';
         $effectiveClerkId = $applyClerkFilter ? $clerkId : null;
+        $applyDateFilter = $hasExplicitDateRange || $tab === 'decision_summary';
 
         return new ReportFiltersDto(
             dateFrom: $dateFrom,
             dateTo: $dateTo,
-            applyDateFilter: $hasExplicitDateRange,
+            applyDateFilter: $applyDateFilter,
             tab: $tab,
             clerkId: $clerkId,
             effectiveClerkId: $effectiveClerkId,

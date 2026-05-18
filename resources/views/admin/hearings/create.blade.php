@@ -747,7 +747,7 @@ function chipSelect(config) {
 
             <span class="px-3 py-1 rounded-full text-xs font-semibold"
                   :class="isPanel ? 'bg-indigo-100 text-indigo-800' : 'bg-green-100 text-green-800'"
-                  x-text="isPanel ? 'Бүрэлдэхүүнтэй хурал (60 мин)' : 'Бүрэлдэхүүнгүй хурал (30 мин)'">
+                  x-text="isPanel ? 'Бүрэлдэхүүнтэй хурал (30 мин)' : 'Бүрэлдэхүүнгүй хурал (10 мин)'">
             </span>
         </div>
 
@@ -767,7 +767,7 @@ function chipSelect(config) {
                 presiding: document.querySelector('[name="presiding_judge_id"]')?.value || '',
                 m1: document.querySelector('[name="member_judge_1_id"]')?.value || '',
                 m2: document.querySelector('[name="member_judge_2_id"]')?.value || '',
-                duration: 30,
+                duration: 10,
                 isPanel: false,
                 startText: '-',
                 endText: '-',
@@ -800,7 +800,7 @@ function chipSelect(config) {
                     const judgeIds = [this.presiding, this.m1, this.m2].filter(Boolean);
                     const uniq = [...new Set(judgeIds)];
                     this.isPanel = uniq.length >= 3;
-                    this.duration = this.isPanel ? 60 : 30;
+                    this.duration = this.isPanel ? 30 : 10;
 
                     if(!this.date || this.hour === '' || this.minute === ''){
                         this.startText = '-'; this.endText = '-';

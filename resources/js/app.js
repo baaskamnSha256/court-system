@@ -1,6 +1,8 @@
 import Alpine from 'alpinejs'
+import { parseMongolianRegistryDemographics } from './mongolian-registry'
 
 window.Alpine = Alpine
+window.parseMongolianRegistryDemographics = parseMongolianRegistryDemographics
 window.formatGroupedNumber = window.formatGroupedNumber || function formatGroupedNumber(rawValue) {
   const raw = String(rawValue || '')
   const digits = raw.replace(/[^0-9]+/g, '').replace(/^0+(?=[0-9])/, '')
@@ -131,6 +133,7 @@ document.addEventListener(
 Alpine.data('notesHandoverRow', (cfg) => ({
   hearingId: cfg.hearingId,
   formId: cfg.formId,
+  requireNotesSummary: cfg.requireNotesSummary !== false,
   openModal: false,
   modalGeneration: 0,
   savedNotesHandoverText: cfg.savedNotesHandoverText ?? '',
@@ -141,6 +144,7 @@ Alpine.data('notesHandoverRow', (cfg) => ({
   notesHandoverText: cfg.savedNotesHandoverText ?? '',
   initialNotesHandoverText: cfg.savedNotesHandoverText ?? '',
   decisionStatus: cfg.savedDecisionStatus ?? '',
+  summaryError: '',
   formatGroupedValue(rawValue) {
     if (window.formatGroupedNumber) {
       return window.formatGroupedNumber(rawValue)
@@ -188,10 +192,25 @@ Alpine.data('notesHandoverRow', (cfg) => ({
       }),
     )
   },
+  hasNotesSummary() {
+    return String(this.notesHandoverText || '').trim() !== ''
+  },
+  submitNotesHandover() {
+    this.summaryError = ''
+    if (this.requireNotesSummary && !this.hasNotesSummary()) {
+      this.summaryError = 'Шүүх хуралдааны тойм оруулна уу.'
+      this.$nextTick(() => {
+        document.getElementById(`notes-handover-textarea-${this.hearingId}`)?.focus()
+      })
+      return
+    }
+    document.getElementById(this.formId)?.requestSubmit()
+  },
   openEditModal() {
     this.notesHandoverText = this.savedNotesHandoverText
     this.initialNotesHandoverText = this.savedNotesHandoverText
     this.decisionStatus = this.savedDecisionStatus
+    this.summaryError = ''
     this.modalGeneration += 1
     this.openModal = true
     this.$nextTick(() => {
@@ -204,11 +223,199 @@ Alpine.data('notesHandoverRow', (cfg) => ({
     this.notesHandoverText = this.savedNotesHandoverText
     this.initialNotesHandoverText = this.savedNotesHandoverText
     this.decisionStatus = this.savedDecisionStatus
+    this.summaryError = ''
     this.$nextTick(() => {
       this.syncFormControlsFromSaved()
       this.broadcastModalReset()
     })
   },
 }))
+
+function cloneNotesPaneInitial(initial) {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(initial)
+    } catch {
+      // fall through
+    }
+  }
+  return JSON.parse(JSON.stringify(initial))
+}
+
+window.notesDefendantPaneState = window.notesDefendantPaneState || function notesDefendantPaneState(initial) {
+  const state = cloneNotesPaneInitial(initial)
+  return {
+    ...state,
+    selectDecidedMatter(id) {
+      const intId = Number(id)
+      if (!intId) return
+      const decidedIds = Array.isArray(this.decidedMatterIds)
+        ? this.decidedMatterIds.map((item) => Number(item)).filter((item) => item > 0)
+        : []
+      if (decidedIds.includes(intId)) {
+        this.decidedMatterIds = decidedIds.filter((item) => item !== intId)
+        this.matterDecisions = this.matterDecisions.filter((row) => Number(row.matter_category_id) !== intId)
+      } else {
+        this.decidedMatterIds = [...decidedIds, intId]
+        if (!this.matterDecisions.some((row) => Number(row.matter_category_id) === intId)) {
+          this.matterDecisions.push({ matter_category_id: intId, decision_type: 'sentence' })
+        }
+      }
+      this.syncPrimaryDecidedMatter()
+      if (!this.activeMatterId || !this.decidedMatterIds.includes(Number(this.activeMatterId))) {
+        this.activeMatterId = this.decidedMatterId
+      }
+      this.matterOpen = false
+    },
+    clearDecidedMatter() {
+      this.decidedMatterIds = []
+      this.matterDecisions = []
+      this.decidedMatterId = null
+      this.activeMatterId = null
+      this.decisionTab = 'sentence'
+      this.outcomeTrack = 'sentence'
+      this.specialOutcome = ''
+      this.terminationKind = ''
+      this.terminationNote = ''
+      this.allocRows = []
+      this.allocKey = (this.allocKey || 0) + 1
+      this.matterQuery = ''
+      this.matterOpen = false
+      this.matterActiveIndex = -1
+    },
+    syncPrimaryDecidedMatter() {
+      const first = Array.isArray(this.decidedMatterIds)
+        ? this.decidedMatterIds.map((id) => Number(id)).find((id) => id > 0)
+        : null
+      this.decidedMatterId = first || null
+    },
+    setActiveMatter(matterId) {
+      const intId = Number(matterId)
+      if (!intId) return
+      this.activeMatterId = intId
+      this.decidedMatterId = intId
+      const type = this.getMatterDecisionType(intId)
+      this.decisionTab = type === 'no_sentence' ? 'probation' : type
+      this.onDecisionTabChange()
+    },
+    getMatterDecisionType(matterId) {
+      const found = this.matterDecisions.find((row) => Number(row.matter_category_id) === Number(matterId))
+      return found ? found.decision_type : 'sentence'
+    },
+    setMatterDecisionType(matterId, decisionType) {
+      const idx = this.matterDecisions.findIndex((row) => Number(row.matter_category_id) === Number(matterId))
+      if (idx < 0) {
+        this.matterDecisions.push({ matter_category_id: Number(matterId), decision_type: decisionType })
+        return
+      }
+      this.matterDecisions[idx].decision_type = decisionType
+    },
+    decidedMatterNameById(id) {
+      const found = this.matterOptions.find((opt) => Number(opt.id) === Number(id))
+      return found ? found.name : ''
+    },
+    filteredMatterOptions() {
+      const q = (this.matterQuery || '').trim().toLowerCase()
+      if (q === '') return this.matterOptions
+      return this.matterOptions.filter((opt) => String(opt.name || '').toLowerCase().includes(q))
+    },
+    openMatterDropdown() {
+      this.matterOpen = true
+      const items = this.filteredMatterOptions()
+      this.matterActiveIndex = items.length > 0 ? 0 : -1
+    },
+    moveMatterHighlight(step) {
+      const items = this.filteredMatterOptions()
+      if (items.length < 1) {
+        this.matterActiveIndex = -1
+        return
+      }
+      if (this.matterActiveIndex < 0) {
+        this.matterActiveIndex = 0
+        return
+      }
+      this.matterActiveIndex = (this.matterActiveIndex + step + items.length) % items.length
+    },
+    chooseMatterByKeyboard() {
+      const items = this.filteredMatterOptions()
+      if (!this.matterOpen || items.length < 1) return
+      const idx = this.matterActiveIndex >= 0 ? this.matterActiveIndex : 0
+      const opt = items[idx] || items[0]
+      if (opt) this.selectDecidedMatter(opt.id)
+    },
+    onDecisionTabChange() {
+      if (!this.decidedMatterId) return
+      this.setMatterDecisionType(this.decidedMatterId, this.decisionTab === 'probation' ? 'no_sentence' : this.decisionTab)
+      if (this.decisionTab === 'sentence') {
+        this.outcomeTrack = 'sentence'
+        this.specialOutcome = ''
+        this.terminationKind = ''
+        this.terminationNote = ''
+      } else if (this.decisionTab === 'probation') {
+        this.outcomeTrack = 'no_sentence'
+        if (
+          ![
+            'Хүмүүжлийн чанартай албадлагын арга хэмжээ хэрэглэсэн',
+            'Эмнэлгийн чанартай албадлагын арга хэмжээ хэрэглэсэн',
+            'Хорих ял оногдуулахгүйгээр тэнссэн',
+            'Эрүүгийн хариуцлагаас чөлөөлсөн',
+          ].includes(this.specialOutcome)
+        ) {
+          this.specialOutcome = ''
+        }
+        this.terminationKind = ''
+        this.terminationNote = ''
+        this.clearAllocationPunishments()
+        this.allocRows = []
+        this.allocKey = (this.allocKey || 0) + 1
+      } else if (this.decisionTab === 'dismiss' || this.decisionTab === 'acquit') {
+        this.outcomeTrack = 'termination'
+        this.terminationKind = this.decisionTab === 'dismiss' ? 'dismiss' : 'acquit'
+        this.specialOutcome = ''
+        this.clearAllocationPunishments()
+        this.allocRows = []
+        this.allocKey = (this.allocKey || 0) + 1
+      }
+    },
+    addAllocRow() {
+      if (this.decisionTab !== 'sentence') return
+      this.allocRows.push({
+        matter_category_id: '',
+        punishments: {
+          fine: { fine_units: '', damage_amount: '' },
+          community_service: { hours: '' },
+          travel_restriction: { years: '', months: '' },
+          imprisonment_open: { years: '', months: '' },
+          imprisonment_closed: { years: '', months: '' },
+          rights_ban_public_service: { years: '', months: '' },
+          rights_ban_professional_activity: { years: '', months: '' },
+          rights_ban_driving: { years: '', months: '' },
+        },
+      })
+    },
+    removeAllocRow(index) {
+      this.allocRows.splice(index, 1)
+    },
+    clearAllocationPunishments() {
+      if (!Array.isArray(this.allocRows)) {
+        this.allocRows = []
+        return
+      }
+      this.allocRows = this.allocRows.map((row) => ({
+        ...row,
+        punishments: {
+          fine: { fine_units: '', damage_amount: '' },
+          community_service: { hours: '' },
+          travel_restriction: { years: '', months: '' },
+          imprisonment_open: { years: '', months: '' },
+          imprisonment_closed: { years: '', months: '' },
+          rights_ban_public_service: { years: '', months: '' },
+          rights_ban_professional_activity: { years: '', months: '' },
+          rights_ban_driving: { years: '', months: '' },
+        },
+      }))
+    },
+  }
+}
 
 Alpine.start()

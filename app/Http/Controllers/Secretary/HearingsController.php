@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Concerns\ManagesHearingLogic;
+use App\Http\Controllers\Concerns\ScopesHearingsFromToday;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
@@ -16,16 +17,17 @@ use Illuminate\Validation\ValidationException;
 class HearingsController extends Controller
 {
     use ManagesHearingLogic;
+    use ScopesHearingsFromToday;
 
     public function index(Request $request)
     {
-        // Огноо → цаг → танхимаар эрэмбэлнэ (админтай адил)
-        $query = Hearing::with(['judges', 'prosecutor'])
-            ->where('created_by', auth()->id())
+        $query = $this->applyHearingsVisibleFromToday(
+            Hearing::query()
+                ->with(['judges', 'prosecutor'])
+        )
             ->orderBy('start_at', 'asc')
             ->orderBy('courtroom', 'asc');
 
-        // Хайлт
         if ($request->filled('q')) {
             $q = '%'.$request->input('q').'%';
             $query->where(function ($w) use ($q) {
@@ -43,11 +45,23 @@ class HearingsController extends Controller
 
         $hearings = $query->paginate(20)->withQueryString();
 
+        $statsBase = $this->applyHearingsVisibleFromToday(Hearing::query());
+        $countsByState = (clone $statsBase)
+            ->selectRaw("COALESCE(hearing_state, 'Хэвийн') as state_key, count(*) as c")
+            ->groupByRaw("COALESCE(hearing_state, 'Хэвийн')")
+            ->get()
+            ->pluck('c', 'state_key')
+            ->toArray();
+        $states = $this->allowedHearingStates();
+        $hearingStateCounts = array_merge(array_fill_keys($states, 0), $countsByState);
+
         return view('hearings.index', [
             'hearings' => $hearings,
-            'indexType' => 'secretary',
-            'headerTitle' => 'Хурлын зар (Шүүгчийн туслах)',
-            'listTitle' => 'Миний хурлын зарууд',
+            'hearingStateCounts' => $hearingStateCounts,
+            'states' => $states,
+            'indexType' => 'readonly',
+            'headerTitle' => '',
+            'listTitle' => 'Хурлын зарууд',
             'createUrl' => route('secretary.hearings.create'),
             'createLabel' => 'Хурлын зар оруулах',
             'searchUrl' => route('secretary.hearings.index'),

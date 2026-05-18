@@ -23,6 +23,7 @@ class DashboardController extends Controller
         $yearEnd = $today->copy()->endOfDay();
 
         $monthQuery = Hearing::query()
+            ->fromTodayOnwards($today)
             ->where(function ($q) use ($userId) {
                 $q->where('prosecutor_id', $userId)
                     ->orWhereJsonContains('prosecutor_ids', $userId);
@@ -30,16 +31,6 @@ class DashboardController extends Controller
             ->where(function ($q) use ($monthStart, $monthEnd) {
                 $q->whereBetween('hearing_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                     ->orWhereBetween('start_at', [$monthStart, $monthEnd]);
-            });
-
-        $yearQuery = Hearing::query()
-            ->where(function ($q) use ($userId) {
-                $q->where('prosecutor_id', $userId)
-                    ->orWhereJsonContains('prosecutor_ids', $userId);
-            })
-            ->where(function ($q) use ($yearStart, $yearEnd) {
-                $q->whereBetween('hearing_date', [$yearStart->toDateString(), $yearEnd->toDateString()])
-                    ->orWhereBetween('start_at', [$yearStart, $yearEnd]);
             });
 
         $hearingsToday = Hearing::with(['judges', 'prosecutor'])
@@ -67,16 +58,22 @@ class DashboardController extends Controller
             ->map(fn ($group) => $group->count())
             ->toArray();
 
-        extract(HearingDashboardStatistics::decisionBreakdown($yearQuery), EXTR_SKIP);
+        $decisionStats = HearingDashboardStatistics::dashboardDecisionStats(
+            Hearing::query()->where(function ($q) use ($userId) {
+                $q->where('prosecutor_id', $userId)
+                    ->orWhereJsonContains('prosecutor_ids', $userId);
+            }),
+            $today
+        );
 
-        return view('prosecutor.dashboard', compact(
+        return view('prosecutor.dashboard', array_merge(compact(
             'hearingsToday',
             'today',
             'hearingsCountByDay',
-            'decisionOptions',
-            'decisionCounts',
+            'yearStart',
+            'yearEnd',
             'monthStart',
             'monthEnd'
-        ));
+        ), $decisionStats));
     }
 }

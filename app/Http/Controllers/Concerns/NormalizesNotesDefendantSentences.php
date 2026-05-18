@@ -2,10 +2,43 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Support\DefendantRegistryResolver;
 use Illuminate\Validation\ValidationException;
 
 trait NormalizesNotesDefendantSentences
 {
+    /**
+     * @return array<string, list<\Illuminate\Contracts\Validation\ValidationRule|string>>
+     */
+    protected function notesHandoverSummaryRules(bool $required = true): array
+    {
+        if (! $required) {
+            return ['notes_handover_text' => ['nullable', 'string']];
+        }
+
+        return [
+            'notes_handover_text' => [
+                'required',
+                'string',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (trim((string) $value) === '') {
+                        $fail('Шүүх хуралдааны тойм оруулна уу.');
+                    }
+                },
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function notesHandoverSummaryMessages(): array
+    {
+        return [
+            'notes_handover_text.required' => 'Шүүх хуралдааны тойм оруулна уу.',
+        ];
+    }
+
     private const OUTCOME_TRACK_SENTENCE = 'sentence';
 
     private const OUTCOME_TRACK_NO_SENTENCE = 'no_sentence';
@@ -58,6 +91,27 @@ trait NormalizesNotesDefendantSentences
             $terminationNote = trim((string) ($sentence['termination_note'] ?? ''));
 
             $decidedMatterIds = array_values(array_filter(array_map('intval', (array) ($sentence['decided_matter_ids'] ?? []))));
+            $matterDecisions = collect((array) ($sentence['matter_decisions'] ?? []))
+                ->map(function ($row) {
+                    if (! is_array($row)) {
+                        return null;
+                    }
+
+                    $matterId = (int) ($row['matter_category_id'] ?? 0);
+                    $decisionType = trim((string) ($row['decision_type'] ?? ''));
+                    if ($matterId < 1 || ! in_array($decisionType, ['sentence', 'no_sentence', 'dismiss', 'acquit'], true)) {
+                        return null;
+                    }
+
+                    return [
+                        'matter_category_id' => $matterId,
+                        'decision_type' => $decisionType,
+                    ];
+                })
+                ->filter()
+                ->unique(fn ($row) => (int) ($row['matter_category_id'] ?? 0))
+                ->values()
+                ->all();
             $punishmentsRaw = is_array($sentence['punishments'] ?? null) ? $sentence['punishments'] : [];
             $punishments = $this->normalizePunishments($punishmentsRaw, true);
 
@@ -110,22 +164,11 @@ trait NormalizesNotesDefendantSentences
                 'termination_kind' => $terminationKind,
                 'termination_note' => $terminationNote,
                 'decided_matter_ids' => $decidedMatterIds,
+                'matter_decisions' => $matterDecisions,
                 'punishments' => $punishments,
                 'special_outcome' => $specialOutcome,
                 'allocations' => $allocations,
             ];
-        }
-
-        $fallbackMatterIds = collect($result)
-            ->map(fn ($row) => array_values(array_filter(array_map('intval', (array) ($row['decided_matter_ids'] ?? [])))))
-            ->first(fn ($ids) => ! empty($ids));
-
-        if (! empty($fallbackMatterIds)) {
-            foreach ($result as $idx => $row) {
-                if (empty($row['decided_matter_ids'] ?? [])) {
-                    $result[$idx]['decided_matter_ids'] = $fallbackMatterIds;
-                }
-            }
         }
 
         return $result;
@@ -161,6 +204,29 @@ trait NormalizesNotesDefendantSentences
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  array<int, mixed>  $sentences
+     * @return array<int, array<string, mixed>>
+     */
+    protected function enrichDefendantRegistriesFromHearing(mixed $hearing, array $sentences): array
+    {
+        $enriched = [];
+        foreach ($sentences as $index => $sentence) {
+            if (! is_array($sentence)) {
+                continue;
+            }
+            if (trim((string) ($sentence['defendant_registry'] ?? '')) === '') {
+                $registry = DefendantRegistryResolver::registryForSentence($sentence, $hearing, (int) $index);
+                if ($registry !== '') {
+                    $sentence['defendant_registry'] = $registry;
+                }
+            }
+            $enriched[] = $sentence;
+        }
+
+        return $enriched;
     }
 
     /**
@@ -381,6 +447,17 @@ trait NormalizesNotesDefendantSentences
         }
 
         $track = $sentence['outcome_track'] ?? self::OUTCOME_TRACK_SENTENCE;
+        $matterIds = array_values(array_filter(array_map('intval', (array) ($sentence['decided_matter_ids'] ?? []))));
+        $matterDecisionIds = collect((array) ($sentence['matter_decisions'] ?? []))
+            ->map(fn ($row) => is_array($row) ? (int) ($row['matter_category_id'] ?? 0) : 0)
+            ->filter(fn ($id) => $id > 0)
+            ->values()
+            ->all();
+        if ($matterIds !== [] && array_diff($matterIds, $matterDecisionIds) !== []) {
+            throw ValidationException::withMessages([
+                "notes_defendant_sentences.{$index}.matter_decisions" => 'Сонгосон зүйл анги бүрт шийдвэрийн төрөл сонгоно уу.',
+            ]);
+        }
 
         if ($track === self::OUTCOME_TRACK_SENTENCE) {
             $hasAlloc = ! empty($sentence['allocations']);

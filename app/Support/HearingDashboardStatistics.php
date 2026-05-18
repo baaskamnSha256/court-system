@@ -2,11 +2,90 @@
 
 namespace App\Support;
 
+use App\Models\Hearing;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 
 class HearingDashboardStatistics
 {
+    public const DECISION_SUMMARY_SCHEDULED_SINCE = '2026-01-01';
+
+    public static function isDecisionStatsVisible(?Carbon $today = null): bool
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+
+        return $today->greaterThanOrEqualTo(self::decisionStatsSinceDate());
+    }
+
+    public static function decisionStatsSinceDate(): Carbon
+    {
+        return Carbon::parse(self::DECISION_SUMMARY_SCHEDULED_SINCE)->startOfDay();
+    }
+
+    /**
+     * @param  Builder<Hearing>  $query
+     * @return Builder<Hearing>
+     */
+    public static function applyDecisionStatsYearScope(Builder $query, ?Carbon $today = null): Builder
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+        $since = self::decisionStatsSinceDate();
+        $yearEnd = $today->copy()->endOfYear();
+
+        return $query->where(function (Builder $outer) use ($since, $yearEnd) {
+            $outer->where(function (Builder $inner) use ($since, $yearEnd) {
+                $inner->whereNotNull('hearing_date')
+                    ->whereDate('hearing_date', '>=', $since->toDateString())
+                    ->whereDate('hearing_date', '<=', $yearEnd->toDateString());
+            })->orWhere(function (Builder $inner) use ($since, $yearEnd) {
+                $inner->whereBetween('start_at', [$since, $yearEnd->copy()->endOfDay()]);
+            });
+        });
+    }
+
+    /**
+     * @param  Builder<Hearing>  $query
+     * @return array{
+     *     showDecisionStats: bool,
+     *     decisionOptions: array<string, string>,
+     *     decisionCounts: array<string, int>,
+     *     totalScheduledHearings: int
+     * }
+     */
+    public static function dashboardDecisionStats(Builder $query, ?Carbon $today = null): array
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+
+        if (! self::isDecisionStatsVisible($today)) {
+            return [
+                'showDecisionStats' => false,
+                'decisionOptions' => [],
+                'decisionCounts' => [],
+                'totalScheduledHearings' => 0,
+            ];
+        }
+
+        $breakdown = self::decisionBreakdown(self::applyDecisionStatsYearScope($query, $today));
+
+        return [
+            'showDecisionStats' => true,
+            ...$breakdown,
+        ];
+    }
+
+    public static function countScheduledHearingsSince(?string $sinceDate = null): int
+    {
+        $since = Carbon::parse($sinceDate ?? self::DECISION_SUMMARY_SCHEDULED_SINCE)->startOfDay();
+
+        return Hearing::query()
+            ->where(function ($q) use ($since) {
+                $q->whereDate('hearing_date', '>=', $since->toDateString())
+                    ->orWhere('start_at', '>=', $since);
+            })
+            ->count();
+    }
+
     /**
      * @return list<string>
      */
@@ -24,7 +103,7 @@ class HearingDashboardStatistics
     }
 
     /**
-     * @return array{decisionOptions: array<string, string>, decisionCounts: array<string, int>}
+     * @return array{decisionOptions: array<string, string>, decisionCounts: array<string, int>, totalScheduledHearings: int}
      */
     public static function decisionBreakdown(Builder $yearQuery): array
     {
@@ -60,6 +139,10 @@ class HearingDashboardStatistics
             $decisionCounts[$k] = (int) Arr::get($rawDecisionCounts, $k, 0);
         }
 
-        return compact('decisionOptions', 'decisionCounts');
+        return [
+            'decisionOptions' => $decisionOptions,
+            'decisionCounts' => $decisionCounts,
+            'totalScheduledHearings' => $totalForYear,
+        ];
     }
 }

@@ -262,7 +262,7 @@ function hearingUX(){
     },
     compute(){
       const judgeIds = [this.presiding, this.m1, this.m2].filter(Boolean);
-      this.duration = (new Set(judgeIds)).size >= 3 ? 60 : 30;
+      this.duration = (new Set(judgeIds)).size >= 3 ? 30 : 10;
       if(!this.date || this.hour === '' || this.minute === ''){ this.startText = '-'; this.endText = '-'; return; }
       const pad = n=> String(n).padStart(2,'0');
       this.startText = `${this.date} ${pad(this.hour)}:${pad(this.minute)}`;

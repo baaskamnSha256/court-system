@@ -25,7 +25,9 @@ it('allows head of department to view admin hearings and users index', function 
         ->assertOk()
         ->assertDontSee('Хурлын зар оруулах')
         ->assertDontSee('Засварлах')
-        ->assertDontSee('Үйлдэл');
+        ->assertDontSee('Үйлдэл')
+        ->assertDontSee('Мэдэгдлийн лог')
+        ->assertDontSee('Үйлдлийн түүх');
 
     $this->actingAs($head)
         ->get(route('admin.users.index'))
@@ -54,5 +56,13 @@ it('forbids head of department from admin-only management routes', function () {
             'password' => 'password',
             'role' => 'judge',
         ])
+        ->assertForbidden();
+
+    $this->actingAs($head)
+        ->get(route('admin.notifications.logs.index'))
+        ->assertForbidden();
+
+    $this->actingAs($head)
+        ->get(route('admin.activity-logs.index'))
         ->assertForbidden();
 });

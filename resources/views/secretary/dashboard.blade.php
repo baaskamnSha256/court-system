@@ -7,11 +7,13 @@
     'hearingsToday' => $hearingsToday,
     'today' => $today,
     'hearingsCountByDay' => $hearingsCountByDay ?? [],
+    'showDecisionStats' => $showDecisionStats ?? false,
     'decisionOptions' => $decisionOptions ?? [],
     'decisionCounts' => $decisionCounts ?? [],
+    'totalScheduledHearings' => $totalScheduledHearings ?? 0,
     'decisionFilterBaseUrl' => route('secretary.notes.index', [
-        'hearing_date_from' => $monthStart->toDateString(),
-        'hearing_date_to' => $monthEnd->toDateString(),
+        'hearing_date_from' => \App\Support\HearingDashboardStatistics::DECISION_SUMMARY_SCHEDULED_SINCE,
+        'hearing_date_to' => $today->copy()->endOfYear()->toDateString(),
     ]),
     'dashboardUrl' => route('secretary.dashboard'),
 ])

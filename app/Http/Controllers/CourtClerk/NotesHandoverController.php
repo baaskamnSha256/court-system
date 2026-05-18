@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\CourtClerk;
 
+use App\Http\Controllers\Concerns\BuildsNotesHandoverIndexQuery;
 use App\Http\Controllers\Concerns\NormalizesNotesDefendantSentences;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
@@ -12,13 +13,17 @@ use Illuminate\Validation\ValidationException;
 
 class NotesHandoverController extends Controller
 {
+    use BuildsNotesHandoverIndexQuery;
     use NormalizesNotesDefendantSentences;
 
     public function index(Request $request)
     {
-        $query = Hearing::query()
-            ->with(['judges', 'prosecutor'])
-            ->where('clerk_id', auth()->id());
+        $query = $this->notesHandoverIndexQuery(
+            $request,
+            Hearing::query()
+                ->with(['judges', 'prosecutor'])
+                ->where('clerk_id', auth()->id())
+        );
 
         if ($request->filled('hearing_date')) {
             $query->whereDate('hearing_date', $request->date('hearing_date'));
@@ -71,8 +76,10 @@ class NotesHandoverController extends Controller
             abort(403, 'Та зөвхөн өөрт оноогдсон хурлын тэмдэглэлийг шинэчилж чадна.');
         }
 
-        $data = $request->validate([
-            'notes_handover_text' => ['nullable', 'string'],
+        $oldIssued = (bool) $hearing->notes_handover_issued;
+
+        $data = $request->validate(array_merge($this->notesHandoverSummaryRules(required: false), [
+            'notes_decided_matter' => ['nullable', 'string', 'max:255'],
             'notes_decided_matter_ids' => ['nullable', 'array'],
             'notes_decided_matter_ids.*' => ['integer', 'exists:matter_categories,id'],
             'notes_fine_units' => ['nullable', 'string', 'max:100'],
@@ -83,6 +90,9 @@ class NotesHandoverController extends Controller
             'notes_defendant_sentences.*.defendant_registry' => ['nullable', 'string', 'max:20'],
             'notes_defendant_sentences.*.decided_matter_ids' => ['nullable', 'array'],
             'notes_defendant_sentences.*.decided_matter_ids.*' => ['integer', 'exists:matter_categories,id'],
+            'notes_defendant_sentences.*.matter_decisions' => ['nullable', 'array'],
+            'notes_defendant_sentences.*.matter_decisions.*.matter_category_id' => ['required_with:notes_defendant_sentences.*.matter_decisions', 'integer', 'exists:matter_categories,id'],
+            'notes_defendant_sentences.*.matter_decisions.*.decision_type' => ['required_with:notes_defendant_sentences.*.matter_decisions', Rule::in(['sentence', 'no_sentence', 'dismiss', 'acquit'])],
             'notes_defendant_sentences.*.punishments' => ['nullable', 'array'],
             'notes_defendant_sentences.*.outcome_track' => ['nullable', 'string', Rule::in(['sentence', 'no_sentence', 'termination'])],
             'notes_defendant_sentences.*.termination_kind' => ['nullable', 'string', Rule::in(['dismiss', 'acquit'])],
@@ -91,18 +101,31 @@ class NotesHandoverController extends Controller
             'notes_defendant_sentences.*.allocations' => ['nullable', 'array'],
             'notes_defendant_sentences.*.allocations.*.matter_category_id' => ['nullable', 'integer', 'exists:matter_categories,id'],
             'notes_defendant_sentences.*.allocations.*.punishments' => ['nullable', 'array'],
-        ], [
+            'notes_handover_issued' => ['nullable', 'boolean'],
+        ]), [
             'notes_decision_status.required' => 'Шүүх хуралдааны шийдвэрийг заавал сонгоно уу.',
         ]);
 
+        $issued = (bool) ($data['notes_handover_issued'] ?? false);
+        $hearing->notes_handover_issued = $issued;
+        if ($issued && ! $oldIssued) {
+            $hearing->notes_handover_issued_at = now();
+            $hearing->notes_handover_saved_at = now();
+        } elseif (! $issued) {
+            $hearing->notes_handover_issued_at = null;
+        }
+
         $hearing->notes_handover_text = $data['notes_handover_text'] ?? $hearing->notes_handover_text;
 
-        $normalizedDefendantSentences = $this->normalizeDefendantSentences($data['notes_defendant_sentences'] ?? []);
+        $normalizedDefendantSentences = $this->normalizeDefendantSentences(
+            $this->enrichDefendantRegistriesFromHearing($hearing, $data['notes_defendant_sentences'] ?? [])
+        );
         $normalizedDefendantSentences = $this->restoreMissingDecidedMatterIdsFromExisting(
             $normalizedDefendantSentences,
             is_array($hearing->notes_defendant_sentences) ? $hearing->notes_defendant_sentences : []
         );
-        $mustValidateSentences = false;
+        $mustValidateSentences = ($data['notes_decision_status'] ?? '') === 'Шийдвэрлэсэн'
+            && $issued;
         if (($data['notes_decision_status'] ?? '') === 'Шийдвэрлэсэн') {
             if ($mustValidateSentences && empty($normalizedDefendantSentences)) {
                 throw ValidationException::withMessages([

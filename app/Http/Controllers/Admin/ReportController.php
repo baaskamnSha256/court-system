@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\MatterCategory;
 use App\Models\User;
 use App\Services\Reports\Contracts\ReportExportServiceInterface;
+use App\Services\Reports\DecisionSummaryReportService;
 use App\Services\Reports\DefendantDetailReportService;
 use App\Services\Reports\ReportDateFilterService;
 use App\Services\Reports\ReportStatisticsService;
 use App\Support\HearingDashboardStatistics;
+use App\Support\HearingNotesDecisionStatusFilter;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -19,6 +22,7 @@ class ReportController extends Controller
         private readonly ReportDateFilterService $dateFilterService,
         private readonly ReportStatisticsService $statisticsService,
         private readonly DefendantDetailReportService $defendantDetailReportService,
+        private readonly DecisionSummaryReportService $decisionSummaryReportService,
         private readonly ReportExportServiceInterface $reportExportService,
     ) {}
 
@@ -34,13 +38,45 @@ class ReportController extends Controller
         extract(HearingDashboardStatistics::decisionBreakdown(clone $base), EXTR_SKIP);
 
         $sentencingStats = $this->statisticsService->buildSentencingStats(clone $base);
-        $defendantDetailRows = $this->defendantDetailReportService->buildRows(clone $base);
+        $defendantDetailRowsRaw = $this->defendantDetailReportService->buildRows(clone $base);
+        $defendantDetailNestedGroups = $this->defendantDetailReportService->buildNestedPreviewGroups($defendantDetailRowsRaw);
 
         $clerks = User::role('court_clerk')->orderBy('name')->get(['id', 'name']);
-        $decisionFilterBaseUrl = route('admin.notes.index', array_filter([
-            'hearing_date_from' => $filters->dateFrom,
-            'hearing_date_to' => $filters->dateTo,
-            'clerk_id' => $filters->effectiveClerkId,
+        $decisionFilterBaseUrl = route('admin.reports.index', array_filter([
+            'tab' => 'decision_summary',
+            'date_from' => $filters->dateFrom,
+            'date_to' => $filters->dateTo,
+        ], fn ($v) => $v !== null && $v !== ''));
+
+        $decisionStatusFilter = $request->filled('notes_decision_status')
+            ? trim((string) $request->input('notes_decision_status'))
+            : null;
+        $decisionSummaryHearings = null;
+        if ($filters->tab === 'decision_summary') {
+            $decisionListQuery = clone $base;
+            if ($decisionStatusFilter !== null && $decisionStatusFilter !== '') {
+                HearingNotesDecisionStatusFilter::apply($decisionListQuery, $decisionStatusFilter);
+            }
+            $decisionSummaryHearings = $decisionListQuery
+                ->with(['judges', 'prosecutor'])
+                ->orderBy('hearing_date')
+                ->orderBy('hour')
+                ->orderBy('minute')
+                ->orderBy('courtroom')
+                ->paginate(25)
+                ->withQueryString();
+        }
+
+        $matterNamesById = MatterCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $totalScheduledHearingsInPeriod = $total;
+        $totalScheduledHearingsUrl = route('admin.reports.index', array_filter([
+            'tab' => 'decision_summary',
+            'date_from' => $filters->dateFrom,
+            'date_to' => $filters->dateTo,
         ], fn ($v) => $v !== null && $v !== ''));
 
         return view('admin.reports.index', [
@@ -53,6 +89,14 @@ class ReportController extends Controller
             'decisionOptions' => $decisionOptions,
             'decisionCounts' => $decisionCounts,
             'decisionFilterBaseUrl' => $decisionFilterBaseUrl,
+            'totalScheduledHearingsInPeriod' => $totalScheduledHearingsInPeriod,
+            'totalScheduledHearingsUrl' => $totalScheduledHearingsUrl,
+            'decisionStatusFilter' => $decisionStatusFilter,
+            'decisionStatusFilterLabel' => $decisionStatusFilter !== null && $decisionStatusFilter !== ''
+                ? HearingNotesDecisionStatusFilter::label($decisionStatusFilter)
+                : null,
+            'decisionSummaryHearings' => $decisionSummaryHearings,
+            'matterNamesById' => $matterNamesById,
             'punishmentRows' => $sentencingStats['punishmentRows'],
             'articleRows' => $sentencingStats['articleRows'],
             'crossRows' => $sentencingStats['crossRows'],
@@ -60,8 +104,10 @@ class ReportController extends Controller
             'ageGenderRows' => $sentencingStats['ageGenderRows'],
             'ageGenderHighlights' => $sentencingStats['ageGenderHighlights'],
             'form75Rows' => $sentencingStats['form75Rows'],
-            'defendantDetailRows' => $defendantDetailRows,
+            'defendantDetailRowCount' => count($defendantDetailRowsRaw),
+            'defendantDetailNestedGroups' => $defendantDetailNestedGroups,
             'defendantDetailColumns' => $this->defendantDetailReportService->exportColumns(),
+            'defendantDetailColumnGroups' => $this->defendantDetailReportService->uiRowspanColumnGroups(),
             'exportLimit' => self::EXPORT_LIMIT,
         ]);
     }
@@ -74,6 +120,34 @@ class ReportController extends Controller
 
         $filters = $this->dateFilterService->resolve($request);
         $base = $this->dateFilterService->buildBaseQuery($filters);
+
+        if ($filters->tab === 'decision_summary') {
+            $decisionStatusFilter = $request->filled('notes_decision_status')
+                ? trim((string) $request->input('notes_decision_status'))
+                : null;
+            $exportQuery = clone $base;
+            if ($decisionStatusFilter !== null && $decisionStatusFilter !== '') {
+                HearingNotesDecisionStatusFilter::apply($exportQuery, $decisionStatusFilter);
+            }
+            $matterNamesById = MatterCategory::query()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->pluck('name', 'id');
+
+            return $this->reportExportService->downloadDecisionSummary(
+                $filters->from,
+                $filters->to,
+                $this->decisionSummaryReportService->buildExportRows(
+                    $exportQuery,
+                    $matterNamesById,
+                    self::EXPORT_LIMIT
+                ),
+                $this->decisionSummaryReportService->exportColumns(),
+                $decisionStatusFilter !== null && $decisionStatusFilter !== ''
+                    ? HearingNotesDecisionStatusFilter::label($decisionStatusFilter)
+                    : null,
+            );
+        }
 
         $total = (clone $base)->count();
         $issued = (clone $base)->where('notes_handover_issued', true)->count();

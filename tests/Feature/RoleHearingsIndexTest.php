@@ -71,6 +71,43 @@ it('shows only own hearings for prosecutor hearings list', function () {
         ->assertDontSee('P-OTHER-001');
 });
 
+it('does not show reports section for court clerk', function () {
+    ensureRole('court_clerk');
+
+    $clerk = User::factory()->create();
+    $clerk->assignRole('court_clerk');
+
+    $this->actingAs($clerk)
+        ->get(route('court_clerk.dashboard'))
+        ->assertOk()
+        ->assertDontSee('>Тайлан<', false);
+
+    $this->actingAs($clerk)
+        ->get('/court-clerk/reports')
+        ->assertNotFound();
+});
+
+it('shows court clerk hearings list with simplified titles', function () {
+    ensureRole('court_clerk');
+
+    $clerk = User::factory()->create();
+    $clerk->assignRole('court_clerk');
+
+    $ownHearing = createHearing([
+        'case_no' => 'CC-OWN-001',
+        'start_at' => now()->addDay(),
+        'clerk_id' => $clerk->id,
+    ]);
+
+    $this->actingAs($clerk)
+        ->get(route('court_clerk.hearings.index'))
+        ->assertOk()
+        ->assertSee('Хурлын зар')
+        ->assertSee('CC-OWN-001')
+        ->assertDontSee('Миний хариуцсан хурлын зарууд')
+        ->assertDontSee('Хурлын зар (Шүүх хурлын нарийн бичгийн дарга)');
+});
+
 it('shows only own hearings for lawyer hearings list', function () {
     ensureRole('lawyer');
 
@@ -94,6 +131,44 @@ it('shows only own hearings for lawyer hearings list', function () {
         ->assertOk()
         ->assertSee('L-OWN-001')
         ->assertDontSee('L-OTHER-001');
+});
+
+it('shows role-scoped total scheduled hearings on judge dashboard', function () {
+    ensureRole('judge');
+    ensureRole('admin');
+
+    $judge = User::factory()->create();
+    $otherJudge = User::factory()->create();
+    $judge->assignRole('judge');
+    $otherJudge->assignRole('judge');
+
+    $ownHearing = createHearing([
+        'case_no' => 'J-TOTAL-OWN',
+        'start_at' => now()->copy()->startOfDay(),
+        'hearing_date' => now()->toDateString(),
+    ]);
+    $otherHearing = createHearing([
+        'case_no' => 'J-TOTAL-OTHER',
+        'start_at' => now()->copy()->startOfDay()->addHour(),
+        'hearing_date' => now()->toDateString(),
+    ]);
+
+    $ownHearing->judges()->attach($judge->id, ['position' => 1]);
+    $otherHearing->judges()->attach($otherJudge->id, ['position' => 1]);
+
+    $this->actingAs($judge)
+        ->get(route('judge.dashboard'))
+        ->assertOk()
+        ->assertSee('Нийт зарлагдсан шүүх хурал')
+        ->assertViewHas('totalScheduledHearings', 1);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $this->actingAs($admin)
+        ->get(route('admin.dashboard'))
+        ->assertOk()
+        ->assertViewHas('totalScheduledHearings', 2);
 });
 
 it('shows pending decision count for judge dashboard', function () {
@@ -121,6 +196,107 @@ it('shows pending decision count for judge dashboard', function () {
         ->assertOk()
         ->assertViewHas('decisionCounts', fn (array $counts) => ($counts['Хүлээгдэж буй'] ?? 0) === 1)
         ->assertViewHas('decisionCounts', fn (array $counts) => ($counts['Шийдвэрлэсэн'] ?? 0) === 1);
+});
+
+it('shows prosecutor hearings list title and decision columns when status filter is active', function () {
+    ensureRole('prosecutor');
+
+    $prosecutor = User::factory()->create();
+    $prosecutor->assignRole('prosecutor');
+
+    createHearing([
+        'case_no' => 'P-DEC-COLS-001',
+        'start_at' => now()->copy()->startOfDay(),
+        'prosecutor_ids' => [$prosecutor->id],
+        'notes_handover_text' => 'Прокурорын тойм',
+        'notes_decided_matter' => 'Зүйл Y',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+    ]);
+
+    $this->actingAs($prosecutor)
+        ->get(route('prosecutor.hearings.index'))
+        ->assertOk()
+        ->assertSee('Миний хурлын зарууд')
+        ->assertDontSee('Хурлын зар (Прокурор)')
+        ->assertDontSee('Шийдвэрийн тойм');
+
+    $this->actingAs($prosecutor)
+        ->get(route('prosecutor.hearings.index', ['notes_decision_status' => 'Шийдвэрлэсэн']))
+        ->assertOk()
+        ->assertSee('Шийдвэрийн тойм')
+        ->assertSee('Шийдвэрийн төрөл')
+        ->assertSee('Шийдвэрлэсэн зүйл анги')
+        ->assertSee('Прокурорын тойм')
+        ->assertSee('Зүйл Y')
+        ->assertSee('Шийдвэрлэсэн');
+});
+
+it('shows lawyer hearings list title and decision columns when status filter is active', function () {
+    ensureRole('lawyer');
+
+    $lawyer = User::factory()->create(['name' => 'Lawyer Decision']);
+    $lawyer->assignRole('lawyer');
+
+    $hearing = createHearing([
+        'case_no' => 'L-DEC-COLS-001',
+        'start_at' => now()->copy()->startOfDay(),
+        'defendant_lawyers_text' => [$lawyer->name],
+        'notes_handover_text' => 'Өмгөөлөгчийн тойм',
+        'notes_decided_matter' => 'Зүйл X',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+    ]);
+
+    $this->actingAs($lawyer)
+        ->get(route('lawyer.hearings.index'))
+        ->assertOk()
+        ->assertSee('Миний хурлын зарууд')
+        ->assertDontSee('Хурлын зар (Өмгөөлөгч)')
+        ->assertDontSee('Шийдвэрийн тойм');
+
+    $this->actingAs($lawyer)
+        ->get(route('lawyer.hearings.index', ['notes_decision_status' => 'Шийдвэрлэсэн']))
+        ->assertOk()
+        ->assertSee('Шийдвэрийн тойм')
+        ->assertSee('Шийдвэрийн төрөл')
+        ->assertSee('Шийдвэрлэсэн зүйл анги')
+        ->assertSee('Өмгөөлөгчийн тойм')
+        ->assertSee('Зүйл X')
+        ->assertSee('Шийдвэрлэсэн');
+});
+
+it('shows judge hearings list title and decision columns when status filter is active', function () {
+    ensureRole('judge');
+
+    $judge = User::factory()->create();
+    $judge->assignRole('judge');
+
+    $hearing = createHearing([
+        'case_no' => 'J-DEC-COLS-001',
+        'start_at' => now()->copy()->startOfDay(),
+        'notes_handover_text' => 'Шийдвэрийн тойм текст',
+        'notes_decided_matter' => 'Зүйл А, Зүйл Б',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+    ]);
+    $hearing->judges()->attach($judge->id, ['position' => 1]);
+
+    $this->actingAs($judge)
+        ->get(route('judge.hearings.index'))
+        ->assertOk()
+        ->assertSee('Миний хурлын зарууд')
+        ->assertDontSee('Миний оролцох хурлын зарууд')
+        ->assertDontSee('Хурлын зар (Шүүгч)')
+        ->assertDontSee('Шийдвэрийн тойм');
+
+    $this->actingAs($judge)
+        ->get(route('judge.hearings.index', ['notes_decision_status' => 'Шийдвэрлэсэн']))
+        ->assertOk()
+        ->assertSee('Шийдвэрийн тойм')
+        ->assertSee('Шийдвэрийн төрөл')
+        ->assertSee('Шийдвэрлэсэн зүйл анги')
+        ->assertSee('Шийдвэрийн тойм текст')
+        ->assertSee('Зүйл А')
+        ->assertSee('Зүйл Б')
+        ->assertSee('Шийдвэрлэсэн');
 });
 
 it('filters hearings by pending decision status', function () {

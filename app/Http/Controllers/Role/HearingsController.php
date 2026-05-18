@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Role;
 
+use App\Http\Controllers\Concerns\ScopesHearingsFromToday;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
+use App\Models\MatterCategory;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class HearingsController extends Controller
 {
+    use ScopesHearingsFromToday;
+
     public function judgeIndex(Request $request): View
     {
         $userId = (int) auth()->id();
@@ -24,15 +29,19 @@ class HearingsController extends Controller
         $this->applyFilters($request, $query);
         $hearings = $query->paginate(20)->withQueryString();
 
+        $showDecisionColumns = $request->filled('notes_decision_status');
+
         return view('hearings.index', [
-            'headerTitle' => 'Хурлын зар (Шүүгч)',
-            'listTitle' => 'Миний оролцох хурлын зарууд',
+            'headerTitle' => '',
+            'listTitle' => 'Миний хурлын зарууд',
             'hearings' => $hearings,
             'indexType' => 'readonly',
             'searchUrl' => route('judge.hearings.index'),
             'createUrl' => route('judge.hearings.index'),
             'createLabel' => 'Шинэ зар оруулах эрхгүй',
             'courtrooms' => $this->allowedCourtrooms(),
+            'showDecisionColumns' => $showDecisionColumns,
+            'matterNamesById' => $showDecisionColumns ? $this->matterNamesById() : collect(),
         ]);
     }
 
@@ -52,15 +61,19 @@ class HearingsController extends Controller
         $this->applyFilters($request, $query);
         $hearings = $query->paginate(20)->withQueryString();
 
+        $showDecisionColumns = $request->filled('notes_decision_status');
+
         return view('hearings.index', [
-            'headerTitle' => 'Хурлын зар (Прокурор)',
-            'listTitle' => 'Миний оролцох хурлын зарууд',
+            'headerTitle' => '',
+            'listTitle' => 'Миний хурлын зарууд',
             'hearings' => $hearings,
             'indexType' => 'readonly',
             'searchUrl' => route('prosecutor.hearings.index'),
             'createUrl' => route('prosecutor.hearings.index'),
             'createLabel' => 'Шинэ зар оруулах эрхгүй',
             'courtrooms' => $this->allowedCourtrooms(),
+            'showDecisionColumns' => $showDecisionColumns,
+            'matterNamesById' => $showDecisionColumns ? $this->matterNamesById() : collect(),
         ]);
     }
 
@@ -83,15 +96,19 @@ class HearingsController extends Controller
         $this->applyFilters($request, $query);
         $hearings = $query->paginate(20)->withQueryString();
 
+        $showDecisionColumns = $request->filled('notes_decision_status');
+
         return view('hearings.index', [
-            'headerTitle' => 'Хурлын зар (Өмгөөлөгч)',
-            'listTitle' => 'Миний оролцох хурлын зарууд',
+            'headerTitle' => '',
+            'listTitle' => 'Миний хурлын зарууд',
             'hearings' => $hearings,
             'indexType' => 'readonly',
             'searchUrl' => route('lawyer.hearings.index'),
             'createUrl' => route('lawyer.hearings.index'),
             'createLabel' => 'Шинэ зар оруулах эрхгүй',
             'courtrooms' => $this->allowedCourtrooms(),
+            'showDecisionColumns' => $showDecisionColumns,
+            'matterNamesById' => $showDecisionColumns ? $this->matterNamesById() : collect(),
         ]);
     }
 
@@ -109,8 +126,8 @@ class HearingsController extends Controller
         $hearings = $query->paginate(20)->withQueryString();
 
         return view('hearings.index', [
-            'headerTitle' => 'Хурлын зар (Шүүх хурлын нарийн бичгийн дарга)',
-            'listTitle' => 'Миний хариуцсан хурлын зарууд',
+            'headerTitle' => '',
+            'listTitle' => 'Хурлын зар',
             'hearings' => $hearings,
             'indexType' => 'readonly',
             'searchUrl' => route('court_clerk.hearings.index'),
@@ -122,6 +139,8 @@ class HearingsController extends Controller
 
     private function applyFilters(Request $request, Builder $query): void
     {
+        $this->applyHearingsVisibleFromToday($query);
+
         if ($request->filled('q')) {
             $search = '%'.$request->input('q').'%';
             $query->where(function (Builder $builder) use ($search) {
@@ -171,5 +190,14 @@ class HearingsController extends Controller
     private function allowedCourtrooms(): array
     {
         return ['A', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж'];
+    }
+
+    /** @return Collection<int, string> */
+    private function matterNamesById(): Collection
+    {
+        return MatterCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name', 'id');
     }
 }

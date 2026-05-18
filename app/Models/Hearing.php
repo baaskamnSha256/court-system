@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -96,6 +98,44 @@ class Hearing extends Model
         'notes_handover_saved_at' => 'datetime',
         'notes_clerk_selected_at' => 'datetime',
     ];
+
+    /**
+     * @param  Builder<Hearing>  $query
+     * @return Builder<Hearing>
+     */
+    public function scopeFromTodayOnwards(Builder $query, ?Carbon $today = null): Builder
+    {
+        $day = ($today ?? Carbon::today())->copy()->startOfDay();
+        $dayString = $day->toDateString();
+
+        return $query->where(function (Builder $outer) use ($day, $dayString) {
+            $outer->where(function (Builder $inner) use ($dayString) {
+                $inner->whereNotNull('hearing_date')
+                    ->whereDate('hearing_date', '>=', $dayString);
+            })->orWhere(function (Builder $inner) use ($day) {
+                $inner->where('start_at', '>=', $day);
+            });
+        });
+    }
+
+    /**
+     * @param  Builder<Hearing>  $query
+     * @return Builder<Hearing>
+     */
+    public function scopeFromScheduledSince(Builder $query, ?Carbon $since = null): Builder
+    {
+        $since = ($since ?? \App\Support\HearingDashboardStatistics::decisionStatsSinceDate())->copy()->startOfDay();
+        $sinceString = $since->toDateString();
+
+        return $query->where(function (Builder $outer) use ($since, $sinceString) {
+            $outer->where(function (Builder $inner) use ($sinceString) {
+                $inner->whereNotNull('hearing_date')
+                    ->whereDate('hearing_date', '>=', $sinceString);
+            })->orWhere(function (Builder $inner) use ($since) {
+                $inner->where('start_at', '>=', $since);
+            });
+        });
+    }
 
     public function judges()
     {

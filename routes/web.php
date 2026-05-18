@@ -103,8 +103,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/settings/reports', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reports.index');
         Route::get('/settings/reports/excel', [\App\Http\Controllers\Admin\ReportController::class, 'download'])->name('reports.download');
         Route::get('/settings/reports/excel-defendant-details', [\App\Http\Controllers\Admin\ReportController::class, 'downloadDefendantDetails'])->name('reports.download.defendant-details');
-        Route::get('/notifications/logs', [NotificationLogsController::class, 'index'])->name('notifications.logs.index');
-        Route::get('/activity-logs', [ActivityLogsController::class, 'index'])->name('activity-logs.index');
+        Route::get('/notifications/logs', [NotificationLogsController::class, 'index'])->middleware('role:admin')->name('notifications.logs.index');
+        Route::get('/activity-logs', [ActivityLogsController::class, 'index'])->middleware('role:admin')->name('activity-logs.index');
         Route::get('/settings/matter-categories', [MatterCategoriesController::class, 'index'])->name('matter-categories.index');
         Route::post('/settings/matter-categories', [MatterCategoriesController::class, 'store'])->name('matter-categories.store');
         Route::delete('/settings/matter-categories/{matterCategory}', [MatterCategoriesController::class, 'destroy'])->name('matter-categories.destroy');
@@ -143,8 +143,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/hearings', [RoleHearingsController::class, 'courtClerkIndex'])->name('hearings.index');
         Route::get('/notes-handover', [\App\Http\Controllers\CourtClerk\NotesHandoverController::class, 'index'])->name('notes.index');
         Route::patch('/notes-handover/{hearing}', [\App\Http\Controllers\CourtClerk\NotesHandoverController::class, 'update'])->name('notes.update');
-        Route::get('/reports', [\App\Http\Controllers\CourtClerk\ReportController::class, 'index'])->name('reports.index');
-        Route::get('/reports/excel', [\App\Http\Controllers\CourtClerk\ReportController::class, 'download'])->name('reports.download');
         Route::post('hearings/check-conflict', [HearingController::class, 'checkConflict'])->name('hearings.checkConflict');
         Route::resource('hearings', HearingController::class)->except(['index', 'create', 'store']);
     });

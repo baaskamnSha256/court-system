@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Secretary;
 
 use App\Http\Controllers\Concerns\NormalizesNotesDefendantSentences;
+use App\Http\Controllers\Concerns\BuildsNotesHandoverIndexQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
@@ -13,12 +14,16 @@ use Illuminate\Validation\ValidationException;
 
 class NotesHandoverController extends Controller
 {
+    use BuildsNotesHandoverIndexQuery;
     use NormalizesNotesDefendantSentences;
 
     public function index(Request $request)
     {
-        $query = Hearing::query()->with(['judges', 'prosecutor'])
-            ->where('created_by', auth()->id());
+        $query = $this->notesHandoverIndexQuery(
+            $request,
+            Hearing::query()->with(['judges', 'prosecutor'])
+                ->where('created_by', auth()->id())
+        );
 
         if ($request->filled('hearing_date')) {
             $query->whereDate('hearing_date', $request->date('hearing_date'));
@@ -38,28 +43,6 @@ class NotesHandoverController extends Controller
                     ->orWhere('courtroom', 'like', "%{$q}%")
                     ->orWhere('defendants', 'like', "%{$q}%");
             });
-        }
-
-        if ($request->filled('notes_decision_status')) {
-            $status = trim((string) $request->input('notes_decision_status'));
-            if ($status === '__pending__') {
-                $known = [
-                    'Шийдвэрлэсэн',
-                    'Хойшилсон',
-                    'Завсарласан',
-                    'Түдгэлзүүлсэн',
-                    'Прокурорт буцаасан',
-                    'Яллагдагчийг шүүхэд шилжүүлсэн',
-                    '60 хүртэлх хоногоор хойшлуулсан',
-                ];
-                $query->where(function ($q) use ($known) {
-                    $q->whereNull('notes_decision_status')
-                        ->orWhereRaw("TRIM(notes_decision_status) = ''")
-                        ->orWhereRaw('TRIM(notes_decision_status) NOT IN ('.implode(',', array_fill(0, count($known), '?')).')', $known);
-                });
-            } else {
-                $query->whereRaw('TRIM(notes_decision_status) = ?', [$status]);
-            }
         }
 
         $hearings = $query
@@ -91,8 +74,7 @@ class NotesHandoverController extends Controller
         $oldClerkId = $hearing->clerk_id;
         $oldIssued = (bool) $hearing->notes_handover_issued;
 
-        $data = $request->validate([
-            'notes_handover_text' => ['nullable', 'string'],
+        $data = $request->validate(array_merge($this->notesHandoverSummaryRules(), [
             'notes_decided_matter' => ['nullable', 'string', 'max:255'],
             'notes_decided_matter_ids' => ['nullable', 'array'],
             'notes_decided_matter_ids.*' => ['integer', 'exists:matter_categories,id'],
@@ -104,6 +86,9 @@ class NotesHandoverController extends Controller
             'notes_defendant_sentences.*.defendant_registry' => ['nullable', 'string', 'max:20'],
             'notes_defendant_sentences.*.decided_matter_ids' => ['nullable', 'array'],
             'notes_defendant_sentences.*.decided_matter_ids.*' => ['integer', 'exists:matter_categories,id'],
+            'notes_defendant_sentences.*.matter_decisions' => ['nullable', 'array'],
+            'notes_defendant_sentences.*.matter_decisions.*.matter_category_id' => ['required_with:notes_defendant_sentences.*.matter_decisions', 'integer', 'exists:matter_categories,id'],
+            'notes_defendant_sentences.*.matter_decisions.*.decision_type' => ['required_with:notes_defendant_sentences.*.matter_decisions', Rule::in(['sentence', 'no_sentence', 'dismiss', 'acquit'])],
             'notes_defendant_sentences.*.punishments' => ['nullable', 'array'],
             'notes_defendant_sentences.*.outcome_track' => ['nullable', 'string', Rule::in(['sentence', 'no_sentence', 'termination'])],
             'notes_defendant_sentences.*.termination_kind' => ['nullable', 'string', Rule::in(['dismiss', 'acquit'])],
@@ -114,10 +99,10 @@ class NotesHandoverController extends Controller
             'notes_defendant_sentences.*.allocations.*.punishments' => ['nullable', 'array'],
             'notes_handover_issued' => ['nullable', 'boolean'],
             'clerk_id' => ['required', 'integer', 'exists:users,id'],
-        ], [
+        ]), array_merge($this->notesHandoverSummaryMessages(), [
             'notes_decision_status.required' => 'Шүүх хуралдааны шийдвэрийг заавал сонгоно уу.',
             'clerk_id.required' => 'Шүүх хуралдааны нарийн бичгийг заавал сонгоно уу.',
-        ]);
+        ]));
 
         // Secretary мөн нарийн бичиг, тэмдэглэл гаргасан эсэхийг тэмдэглэж чадна (таны шаардлагаар адилхан)
         $hearing->clerk_id = $data['clerk_id'] ?? null;
@@ -135,7 +120,9 @@ class NotesHandoverController extends Controller
 
         $hearing->notes_handover_text = $data['notes_handover_text'] ?? $hearing->notes_handover_text;
 
-        $normalizedDefendantSentences = $this->normalizeDefendantSentences($data['notes_defendant_sentences'] ?? []);
+        $normalizedDefendantSentences = $this->normalizeDefendantSentences(
+            $this->enrichDefendantRegistriesFromHearing($hearing, $data['notes_defendant_sentences'] ?? [])
+        );
         $normalizedDefendantSentences = $this->restoreMissingDecidedMatterIdsFromExisting(
             $normalizedDefendantSentences,
             is_array($hearing->notes_defendant_sentences) ? $hearing->notes_defendant_sentences : []

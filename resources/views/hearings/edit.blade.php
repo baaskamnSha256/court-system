@@ -233,6 +233,12 @@
                     results: [],
                     message: '',
                     searchUrl: '{{ $defendantSearchUrl ?? url("/admin/defendant-search") }}',
+                    hearingReferenceDate: @js(old('hearing_date', optional($hearing->hearing_date)->format('Y-m-d') ?? now()->format('Y-m-d'))),
+                    demographicsLabel(registry) {
+                        const parsed = window.parseMongolianRegistryDemographics?.(registry, this.hearingReferenceDate)
+                        if (!parsed) return ''
+                        return `Нас: ${parsed.age}, Хүйс: ${parsed.gender}`
+                    },
                     addDefendant(item) {
                         if (!item || !item.name) return;
                         if (this.defendants.some(d => d.name === item.name && d.registry === (item.registry || ''))) return;
@@ -268,9 +274,12 @@
                 <label class="text-sm font-semibold text-gray-700">Шүүгдэгч</label>
                 <div class="mt-1 min-h-[4.5rem] rounded-md border bg-gray-50/50 p-3 flex flex-wrap items-start gap-2 content-start {{ ($errors->has('defendant_names') || $errors->has('defendant_names.0')) ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-300' }}">
                     <template x-for="(d, i) in defendants" :key="i">
-                        <span class="inline-flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm shadow-sm">
-                            <span x-text="d.registry ? d.name + ' (' + d.registry + ')' : d.name"></span>
-                            <button type="button" @click="removeDefendant(i)" class="text-gray-500 hover:text-red-600 leading-none">&times;</button>
+                        <span class="inline-flex flex-col gap-0.5 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm shadow-sm">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span x-text="d.registry ? d.name + ' (' + d.registry + ')' : d.name"></span>
+                                <button type="button" @click="removeDefendant(i)" class="text-gray-500 hover:text-red-600 leading-none">&times;</button>
+                            </span>
+                            <span x-show="demographicsLabel(d.registry)" x-text="demographicsLabel(d.registry)" class="text-[11px] text-slate-500"></span>
                         </span>
                     </template>
                     <button type="button"
@@ -1077,7 +1086,7 @@ function hearingUX(){
     },
     compute(){
       const judgeIds = [this.presiding, this.m1, this.m2].filter(Boolean);
-      this.duration = (new Set(judgeIds)).size >= 3 ? 60 : 30;
+      this.duration = (new Set(judgeIds)).size >= 3 ? 30 : 10;
       if(!this.date || this.hour === '' || this.minute === ''){ this.startText = '-'; this.endText = '-'; return; }
       const pad = n=> String(n).padStart(2,'0');
       this.startText = `${this.date} ${pad(this.hour)}:${pad(this.minute)}`;

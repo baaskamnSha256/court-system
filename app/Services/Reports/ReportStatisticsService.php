@@ -3,7 +3,8 @@
 namespace App\Services\Reports;
 
 use App\Models\MatterCategory;
-use Carbon\Carbon;
+use App\Support\DefendantRegistryResolver;
+use App\Support\MongolianRegistryDemographics;
 use Illuminate\Database\Eloquent\Builder;
 
 class ReportStatisticsService
@@ -69,8 +70,8 @@ class ReportStatisticsService
                 if (! is_array($sentence)) {
                     continue;
                 }
-                $registry = (string) ($sentence['defendant_registry'] ?? '');
-                $demographics = $this->parseDemographicsFromRegistry($registry, $hearing->hearing_date);
+                $registry = DefendantRegistryResolver::registryForSentence($sentence, $hearing);
+                $demographics = MongolianRegistryDemographics::parseForStatistics($registry, $hearing->hearing_date);
                 $isPerson = $demographics !== null;
                 $specialOutcome = trim((string) ($sentence['special_outcome'] ?? ''));
                 $track = trim((string) ($sentence['outcome_track'] ?? ''));
@@ -347,56 +348,6 @@ class ReportStatisticsService
                 'male_60_plus' => (int) (($ageGenderCounts['35_plus']['male_60_plus'] ?? 0)),
             ],
             'form75Rows' => $form75Rows,
-        ];
-    }
-
-    /**
-     * @return array{gender: 'female'|'male', age_bucket: string, age: int}|null
-     */
-    private function parseDemographicsFromRegistry(string $registry, mixed $referenceDate): ?array
-    {
-        $normalized = mb_strtoupper(trim($registry), 'UTF-8');
-        $digits = preg_replace('/\D+/', '', $normalized);
-        if (! is_string($digits) || strlen($digits) < 8) {
-            return null;
-        }
-
-        $datePart = substr($digits, 0, 6);
-        $yy = (int) substr($datePart, 0, 2);
-        $mmRaw = (int) substr($datePart, 2, 2);
-        $dd = (int) substr($datePart, 4, 2);
-        $mm = $mmRaw;
-        $fullYear = 1900 + $yy;
-        if ($mmRaw > 20) {
-            $mm = $mmRaw - 20;
-            $fullYear = 2000 + $yy;
-        }
-        if (! checkdate($mm, $dd, $fullYear)) {
-            return null;
-        }
-
-        $genderDigit = (int) substr($digits, 6, 1);
-        $gender = $genderDigit % 2 === 0 ? 'female' : 'male';
-        $birthDate = Carbon::create($fullYear, $mm, $dd)->startOfDay();
-        $asOfDate = $referenceDate ? Carbon::parse($referenceDate)->startOfDay() : now()->startOfDay();
-        $age = $birthDate->diffInYears($asOfDate);
-        $bucket = match (true) {
-            $age >= 14 && $age <= 15 => '14_15',
-            $age >= 16 && $age <= 17 => '16_17',
-            $age >= 18 && $age <= 21 => '18_21',
-            $age >= 22 && $age <= 29 => '22_29',
-            $age >= 30 && $age <= 34 => '30_34',
-            $age >= 35 => '35_plus',
-            default => null,
-        };
-        if ($bucket === null) {
-            return null;
-        }
-
-        return [
-            'gender' => $gender,
-            'age_bucket' => $bucket,
-            'age' => $age,
         ];
     }
 }

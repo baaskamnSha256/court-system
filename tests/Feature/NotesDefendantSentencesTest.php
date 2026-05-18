@@ -52,6 +52,12 @@ it('saves defendant-level sentences when decision is solved', function () {
                     'defendant_name' => 'Шүүгдэгч 1',
                     'defendant_registry' => 'ab12345678',
                     'decided_matter_ids' => [$m1->id],
+                    'matter_decisions' => [
+                        [
+                            'matter_category_id' => $m1->id,
+                            'decision_type' => 'sentence',
+                        ],
+                    ],
                     'punishments' => [
                         'damage_amount' => '450,000',
                         'compensated_damage_amount' => '120,000',
@@ -127,12 +133,11 @@ it('shows persisted summary text in notes list even after unrelated validation o
             'notes_handover_text' => '',
             'notes_defendant_sentences' => [],
         ])
-        ->assertRedirect(route('admin.notes.index'));
+        ->assertSessionHasErrors('notes_handover_text');
 
-    actingAs($admin)
-        ->get(route('admin.notes.index'))
-        ->assertOk()
-        ->assertSee('Хадгалсан тойм');
+    $hearing->refresh();
+
+    expect($hearing->notes_handover_text)->toBe('Хадгалсан тойм');
 });
 
 it('saves per-article allocations when provided', function () {
@@ -162,6 +167,7 @@ it('saves per-article allocations when provided', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Хуваарилалтын тойм',
             'notes_defendant_sentences' => [
                 [
                     'defendant_name' => 'Шүүгдэгч C',
@@ -229,6 +235,7 @@ it('rejects community service hours above 720', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Нийтэд тустай ажлын тойм',
             'notes_defendant_sentences' => [
                 [
                     'defendant_name' => 'Шүүгдэгч 2',
@@ -271,6 +278,7 @@ it('saves defendant special outcome as non-sentencing selection', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Тусгай шийдвэрийн тойм',
             'notes_defendant_sentences' => [
                 [
                     'defendant_name' => 'Шүүгдэгч тусгай',
@@ -313,6 +321,7 @@ it('saves termination track with kind and note when issued', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Түдгэлзүүлсэн шийдвэрийн тойм',
             'notes_handover_issued' => 1,
             'notes_defendant_sentences' => [
                 [
@@ -361,18 +370,31 @@ it('keeps decided matter ids for non-sentencing tracks', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Олон шүүгдэгчийн тойм',
             'notes_handover_issued' => 1,
             'notes_defendant_sentences' => [
                 [
                     'defendant_name' => 'Шүүгдэгч 1',
                     'outcome_track' => 'no_sentence',
                     'decided_matter_ids' => [$m1->id],
+                    'matter_decisions' => [
+                        [
+                            'matter_category_id' => $m1->id,
+                            'decision_type' => 'no_sentence',
+                        ],
+                    ],
                     'special_outcome' => 'Эрүүгийн хариуцлагаас чөлөөлсөн',
                 ],
                 [
                     'defendant_name' => 'Шүүгдэгч 2',
                     'outcome_track' => 'termination',
                     'decided_matter_ids' => [$m2->id],
+                    'matter_decisions' => [
+                        [
+                            'matter_category_id' => $m2->id,
+                            'decision_type' => 'dismiss',
+                        ],
+                    ],
                     'termination_kind' => 'dismiss',
                     'termination_note' => 'Хэрэгсэхгүй болгосон',
                 ],
@@ -412,6 +434,7 @@ it('rejects selecting special outcome together with punishments', function () {
         ->patch(route('admin.notes.update', $hearing), [
             'clerk_id' => $clerk->id,
             'notes_decision_status' => 'Шийдвэрлэсэн',
+            'notes_handover_text' => 'Зөрчилтэй тойм',
             'notes_defendant_sentences' => [
                 [
                     'defendant_name' => 'Шүүгдэгч зөрчил',

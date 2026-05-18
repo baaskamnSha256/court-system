@@ -18,4 +18,16 @@ interface ReportExportServiceInterface
      * @param  list<array{key:string,label:string}>  $columns
      */
     public function downloadDefendantDetails(Carbon $from, Carbon $to, array $rows, array $columns): StreamedResponse;
+
+    /**
+     * @param  array<int, array<string, string>>  $rows
+     * @param  list<array{key: string, label: string}>  $columns
+     */
+    public function downloadDecisionSummary(
+        Carbon $from,
+        Carbon $to,
+        array $rows,
+        array $columns,
+        ?string $statusFilterLabel = null,
+    ): StreamedResponse;
 }

@@ -4,17 +4,20 @@
 
 @section('content')
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-3">
-        @include('partials.widgets.decision-stats', [
-            'today' => $today,
-            'decisionOptions' => $decisionOptions ?? [],
-            'decisionCounts' => $decisionCounts ?? [],
-            'decisionFilterBaseUrl' => route('admin.notes.index', [
-                'hearing_date_from' => $yearStart->toDateString(),
-                'hearing_date_to' => $yearEnd->toDateString(),
-            ]),
-        ])
-    </div>
+    @if($showDecisionStats ?? false)
+        <div class="lg:col-span-3">
+            @include('partials.widgets.decision-stats', [
+                'today' => $today,
+                'decisionOptions' => $decisionOptions ?? [],
+                'decisionCounts' => $decisionCounts ?? [],
+                'totalScheduledHearings' => $totalScheduledHearings ?? 0,
+                'decisionFilterBaseUrl' => route('admin.notes.index', [
+                    'hearing_date_from' => \App\Support\HearingDashboardStatistics::DECISION_SUMMARY_SCHEDULED_SINCE,
+                    'hearing_date_to' => $today->copy()->endOfYear()->toDateString(),
+                ]),
+            ])
+        </div>
+    @endif
 
     <div class="lg:col-span-2">
         @include('partials.widgets.today-hearings', ['hearingsToday' => $hearingsToday, 'today' => $today])

@@ -42,14 +42,14 @@
         <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    <tr>
+                <tr>
                         <th class="px-3 py-2 text-left">Огноо</th>
                         <th class="px-3 py-2 text-left">Хэрэглэгч</th>
-                        <th class="px-3 py-2 text-left">Эрх (түүхэнд)</th>
+                        <th class="px-3 py-2 text-left">Эрх </th>
                         <th class="px-3 py-2 text-left">Үйлдэл</th>
                         <th class="px-3 py-2 text-left">Тайлбар</th>
-                        <th class="px-3 py-2 text-left">Хэрэг №</th>
-                        <th class="px-3 py-2 text-left">IP</th>
+                        <th class="px-3 py-2 text-left">Хэргийн дугаар</th>
+                        <th class="px-3 py-2 text-left">IP хаяг</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">

@@ -2,6 +2,8 @@
     $decisionOptions = $decisionOptions ?? [];
     $decisionCounts = $decisionCounts ?? [];
     $decisionFilterBaseUrl = $decisionFilterBaseUrl ?? null;
+    $totalScheduledHearings = (int) ($totalScheduledHearings ?? 0);
+    $totalScheduledHearingsUrl = $decisionFilterBaseUrl;
 
     $palette = [
         'Хүлээгдэж буй' => 'border-slate-200 bg-slate-50/60 text-slate-800',
@@ -16,13 +18,24 @@
 @endphp
 
 <div class="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
-    <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="mb-3 flex items-center justify-between gap-2">
         <h3 class="text-sm font-semibold text-slate-800">Шүүх хуралдааны шийдвэр (жилээр)</h3>
-        <span class="text-[11px] sm:text-xs font-medium text-slate-500 shrink-0">{{ ($today ?? now())->format('Y') }} он (01/01-ээс)</span>
+        <span class="shrink-0 text-[11px] font-medium text-slate-500 sm:text-xs">{{ ($today ?? now())->format('Y') }} он ({{ \Illuminate\Support\Carbon::parse(\App\Support\HearingDashboardStatistics::DECISION_SUMMARY_SCHEDULED_SINCE)->format('Y.m.d') }}-с)</span>
     </div>
 
-    <div class="overflow-x-auto">
-        <div class="flex min-w-max flex-nowrap gap-2">
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr))]">
+        @if($totalScheduledHearingsUrl)
+            <a href="{{ $totalScheduledHearingsUrl }}"
+               class="block min-w-0 rounded-xl border border-blue-200 bg-blue-50/50 p-3 text-blue-900 transition hover:ring-2 hover:ring-blue-300/60">
+                <div class="text-[11px] font-semibold leading-snug whitespace-normal break-words opacity-90 [text-wrap:wrap]">Нийт зарлагдсан шүүх хурал</div>
+                <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($totalScheduledHearings) }}</div>
+            </a>
+        @else
+            <div class="min-w-0 rounded-xl border border-blue-200 bg-blue-50/50 p-3 text-blue-900">
+                <div class="text-[11px] font-semibold leading-snug whitespace-normal break-words opacity-90 [text-wrap:wrap]">Нийт зарлагдсан шүүх хурал</div>
+                <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format($totalScheduledHearings) }}</div>
+            </div>
+        @endif
         @foreach($decisionOptions as $key => $label)
             @php
                 $cls = $palette[$key] ?? 'border-slate-200 bg-slate-50/40 text-slate-800';
@@ -32,18 +45,16 @@
                     : null;
             @endphp
             @if($filterUrl)
-                <a href="{{ $filterUrl }}" class="block min-w-[11rem] rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }} hover:ring-2 hover:ring-slate-300/70 transition">
-                    <div class="text-[10px] sm:text-[11px] font-semibold opacity-80 leading-snug line-clamp-2">{{ $label }}</div>
-                    <div class="mt-0.5 text-lg sm:text-xl font-extrabold tabular-nums">{{ number_format((int)($decisionCounts[$key] ?? 0)) }}</div>
+                <a href="{{ $filterUrl }}" class="block min-w-0 rounded-xl border p-3 {{ $cls }} transition hover:ring-2 hover:ring-slate-300/70">
+                    <div class="text-[11px] font-semibold leading-snug whitespace-normal break-words opacity-80 [text-wrap:wrap]">{{ $label }}</div>
+                    <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format((int) ($decisionCounts[$key] ?? 0)) }}</div>
                 </a>
             @else
-                <div class="min-w-[11rem] rounded-lg border px-2 py-2 sm:px-2.5 sm:py-2 {{ $cls }}">
-                    <div class="text-[10px] sm:text-[11px] font-semibold opacity-80 leading-snug line-clamp-2">{{ $label }}</div>
-                    <div class="mt-0.5 text-lg sm:text-xl font-extrabold tabular-nums">{{ number_format((int)($decisionCounts[$key] ?? 0)) }}</div>
+                <div class="min-w-0 rounded-xl border p-3 {{ $cls }}">
+                    <div class="text-[11px] font-semibold leading-snug whitespace-normal break-words opacity-80 [text-wrap:wrap]">{{ $label }}</div>
+                    <div class="mt-1 text-2xl font-bold tabular-nums">{{ number_format((int) ($decisionCounts[$key] ?? 0)) }}</div>
                 </div>
             @endif
         @endforeach
-        </div>
     </div>
 </div>
-

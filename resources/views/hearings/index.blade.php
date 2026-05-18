@@ -1,7 +1,18 @@
 @extends('layouts.dashboard')
-@section('header', $headerTitle ?? 'Хурлын зар')
+@php
+    $pageHeader = trim((string) ($headerTitle ?? 'Хурлын зар'));
+@endphp
+@if($pageHeader !== '')
+    @section('header', $pageHeader)
+@endif
 
 @section('content')
+@php
+    use App\Support\HearingSummaryDisplay;
+
+    $showDecisionColumns = (bool) ($showDecisionColumns ?? false);
+    $matterNamesById = $matterNamesById ?? collect();
+@endphp
 <div class="space-y-6">
     @if(session('success'))
         <div class="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm font-medium">
@@ -107,6 +118,11 @@
                         <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">Өмгөөлөгчийн нэр</th>
                         <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">ТСАХ</th>
                         <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">Хохирогч, гэрч, шинжээч, ххёт, иргэний нэхэмжлэгч, хариуцагч</th>
+                        @if($showDecisionColumns)
+                            <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">Шийдвэрийн тойм</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">Шийдвэрийн төрөл</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-slate-700 whitespace-normal">Шийдвэрлэсэн зүйл анги</th>
+                        @endif
                         @if(($indexType ?? null) !== 'readonly')
                             <th class="px-3 py-2.5 text-right font-semibold text-slate-700 whitespace-normal">Үйлдэл</th>
                         @endif
@@ -115,6 +131,7 @@
                 <tbody>
                     @foreach($hearings as $h)
                         @php
+                            $summaryRow = $showDecisionColumns ? HearingSummaryDisplay::row($h, $matterNamesById) : null;
                             $dateStr = $h->hearing_date ? (is_object($h->hearing_date) ? $h->hearing_date->format('Y-m-d') : $h->hearing_date) : (optional($h->start_at)->format('Y-m-d') ?? '—');
                             $timeStr = optional($h->start_at)->format('H:i') ?? ($h->hour !== null && $h->minute !== null ? sprintf('%02d:%02d', $h->hour, $h->minute) : '—');
                             $judgesStr = $h->relationLoaded('judges') && $h->judges->isNotEmpty() ? $h->judges->pluck('name')->implode(', ') : ($h->judge_names_text ?? '—');
@@ -182,6 +199,23 @@
                                     —
                                 @endif
                             </td>
+                            @if($showDecisionColumns && $summaryRow)
+                                <td class="px-3 py-2.5 text-slate-700 align-top whitespace-pre-wrap break-words text-xs">{{ $summaryRow['decision_summary'] }}</td>
+                                <td class="px-3 py-2.5 text-center align-top">
+                                    <span class="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium leading-snug whitespace-normal break-words [text-wrap:wrap] {{ HearingSummaryDisplay::decisionStatusBadgeClass($summaryRow['decision_status_key']) }}">
+                                        {{ $summaryRow['decision_status'] }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2.5 text-slate-700 align-top whitespace-normal break-words">
+                                    @if(count($summaryRow['decided_matter_lines']))
+                                        @foreach($summaryRow['decided_matter_lines'] as $matterLine)
+                                            <div class="text-xs">{{ $matterLine }}</div>
+                                        @endforeach
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                            @endif
                             @if(($indexType ?? null) !== 'readonly')
                                 <td class="px-3 py-2.5 text-right whitespace-nowrap">
                                     <div class="flex items-center justify-end gap-1.5">

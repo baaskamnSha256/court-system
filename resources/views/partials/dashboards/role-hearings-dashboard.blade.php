@@ -1,12 +1,15 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    @if($showDecisionStats ?? false)
     <div class="lg:col-span-3">
         @include('partials.widgets.decision-stats', [
             'today' => $today,
             'decisionOptions' => $decisionOptions ?? [],
             'decisionCounts' => $decisionCounts ?? [],
+            'totalScheduledHearings' => $totalScheduledHearings ?? 0,
             'decisionFilterBaseUrl' => $decisionFilterBaseUrl ?? null,
         ])
     </div>
+    @endif
     <div class="lg:col-span-2">
         @include('partials.widgets.today-hearings', ['hearingsToday' => $hearingsToday, 'today' => $today])
     </div>

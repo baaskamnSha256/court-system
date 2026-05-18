@@ -13,12 +13,14 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $query = Hearing::query()
+            ->fromTodayOnwards()
             ->with(['judges', 'prosecutor'])
             ->orderBy('start_at', 'asc')
             ->orderBy('courtroom', 'asc');
 
         if ($request->filled('date_from')) {
-            $query->whereDate('hearing_date', '>=', $request->input('date_from'));
+            $from = max($request->input('date_from'), now()->toDateString());
+            $query->whereDate('hearing_date', '>=', $from);
         }
         if ($request->filled('date_to')) {
             $query->whereDate('hearing_date', '<=', $request->input('date_to'));

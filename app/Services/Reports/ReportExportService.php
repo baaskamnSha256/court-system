@@ -184,4 +184,73 @@ class ReportExportService implements ReportExportServiceInterface
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
+
+    /**
+     * @param  array<int, array<string, string>>  $rows
+     * @param  list<array{key: string, label: string}>  $columns
+     */
+    public function downloadDecisionSummary(
+        Carbon $from,
+        Carbon $to,
+        array $rows,
+        array $columns,
+        ?string $statusFilterLabel = null,
+    ): StreamedResponse {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Шийдвэрийн тойм');
+
+        $headerRow = 1;
+        if ($statusFilterLabel !== null && $statusFilterLabel !== '') {
+            $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+            $sheet->setCellValue('A1', 'Шийдвэр: '.$statusFilterLabel);
+            $sheet->mergeCells("A1:{$lastColLetter}1");
+            $sheet->getStyle('A1')->getFont()->setBold(true);
+            $headerRow = 2;
+        }
+
+        $lastColLetter = Coordinate::stringFromColumnIndex(count($columns));
+        foreach ($columns as $index => $column) {
+            $colLetter = Coordinate::stringFromColumnIndex($index + 1);
+            $sheet->setCellValue("{$colLetter}{$headerRow}", $column['label']);
+        }
+        $sheet->getStyle("A{$headerRow}:{$lastColLetter}{$headerRow}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$headerRow}:{$lastColLetter}{$headerRow}")->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER)
+            ->setWrapText(true);
+
+        $line = $headerRow + 1;
+        foreach ($rows as $row) {
+            foreach ($columns as $index => $column) {
+                $colLetter = Coordinate::stringFromColumnIndex($index + 1);
+                $key = $column['key'];
+                $sheet->setCellValue("{$colLetter}{$line}", $row[$key] ?? '');
+            }
+            $line++;
+        }
+
+        $lastDataRow = max($headerRow, $line - 1);
+        $sheet->setAutoFilter("A{$headerRow}:{$lastColLetter}{$lastDataRow}");
+        $sheet->freezePane('A'.($headerRow + 1));
+        $sheet->getStyle("A{$headerRow}:{$lastColLetter}{$lastDataRow}")->getAlignment()
+            ->setVertical(Alignment::VERTICAL_TOP)
+            ->setWrapText(true);
+        $sheet->getStyle("A{$headerRow}:{$lastColLetter}{$headerRow}")->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        foreach (range(1, count($columns)) as $colIndex) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($colIndex))->setAutoSize(true);
+        }
+
+        $suffix = $statusFilterLabel ? '_'.preg_replace('/\s+/', '_', $statusFilterLabel) : '';
+        $fileName = 'шийдвэрийн_тойм'.$suffix.'_'.$from->format('Ymd').'_'.$to->format('Ymd').'.xlsx';
+        $writer = new Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
 }
