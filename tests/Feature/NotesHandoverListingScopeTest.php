@@ -13,7 +13,7 @@ function ensureNotesListingRole(string $name): void
     Role::query()->firstOrCreate(['name' => $name, 'guard_name' => 'web']);
 }
 
-it('lists non-resolved hearings from 2026-01-01 onward on admin notes handover index', function () {
+it('lists hearings from 2026-01-01 onward excluding only issued notes on admin notes handover index', function () {
     ensureNotesListingRole('admin');
     ensureNotesListingRole('court_clerk');
 
@@ -41,7 +41,21 @@ it('lists non-resolved hearings from 2026-01-01 onward on admin notes handover i
         'minute' => 0,
         'courtroom' => 'A',
         'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_handover_issued' => false,
         'defendants' => 'RESOLVED-IN-RANGE-DEF',
+    ]);
+
+    $issuedInRange = Hearing::query()->create([
+        'title' => 'Issued in range',
+        'case_no' => 'NOTES-ISSUED-IN-RANGE',
+        'hearing_date' => '2026-02-11',
+        'start_at' => '2026-02-11 10:00:00',
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Хойшилсон',
+        'notes_handover_issued' => true,
+        'defendants' => 'ISSUED-IN-RANGE-DEF',
     ]);
 
     $postponedInRange = Hearing::query()->create([
@@ -64,8 +78,64 @@ it('lists non-resolved hearings from 2026-01-01 onward on admin notes handover i
         ->get(route('admin.notes.index'))
         ->assertOk()
         ->assertSee('POSTPONED-IN-RANGE-DEF')
-        ->assertDontSee('RESOLVED-IN-RANGE-DEF')
+        ->assertSee('RESOLVED-IN-RANGE-DEF')
+        ->assertDontSee('ISSUED-IN-RANGE-DEF')
         ->assertDontSee('BEFORE-2026-DEF');
+});
+
+it('shows issued resolved hearings when opened from dashboard year view on admin notes index', function () {
+    ensureNotesListingRole('admin');
+    ensureNotesListingRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    Hearing::query()->create([
+        'title' => 'Dashboard issued resolved',
+        'case_no' => 'NOTES-DASH-ISSUED',
+        'hearing_date' => '2026-03-01',
+        'start_at' => '2026-03-01 10:00:00',
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_handover_issued' => true,
+        'defendants' => 'DASH-ISSUED-DEF',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.notes.index', array_merge(
+            \App\Support\HearingDashboardStatistics::dashboardDecisionFilterQuery(),
+            ['notes_decision_status' => 'Шийдвэрлэсэн']
+        )))
+        ->assertOk()
+        ->assertSee('DASH-ISSUED-DEF');
+});
+
+it('hides issued hearings even when decision status is resolved on admin notes handover index', function () {
+    ensureNotesListingRole('admin');
+    ensureNotesListingRole('court_clerk');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    Hearing::query()->create([
+        'title' => 'Resolved and issued',
+        'case_no' => 'NOTES-RESOLVED-ISSUED',
+        'hearing_date' => '2026-05-01',
+        'start_at' => '2026-05-01 10:00:00',
+        'hour' => 10,
+        'minute' => 0,
+        'courtroom' => 'A',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+        'notes_handover_issued' => true,
+        'defendants' => 'RESOLVED-ISSUED-DEF',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.notes.index'))
+        ->assertOk()
+        ->assertDontSee('RESOLVED-ISSUED-DEF');
 });
 
 it('still allows filtering resolved hearings explicitly on admin notes handover index', function () {

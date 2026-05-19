@@ -235,47 +235,10 @@
             </div>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                <div class="text-sm font-semibold text-slate-800">Шийдвэрлэсэн зүйл анги</div>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm table-auto min-w-[420px]">
-                    <thead>
-                        <tr class="bg-white border-b border-slate-200">
-                            <th class="px-4 py-3 text-left font-semibold text-slate-700">Зүйл анги</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Нийт</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Ял оноох</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Тэнсэх</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Хэрэгсэхгүй</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Цагаатгах</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Нийтэд тустай ажил (цаг)</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Торгох нэгж</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-700">Мөнгөн дүн (төг)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($articleRows as $row)
-                            <tr class="border-b border-slate-100 last:border-0">
-                                <td class="px-4 py-3 text-slate-700">{{ $row['name'] }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['count'] }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['sentence_count'] ?? 0 }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['no_sentence_count'] ?? 0 }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['dismiss_count'] ?? 0 }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ $row['acquit_count'] ?? 0 }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['community_hours_total'] ?? 0)) }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['fine_units_total'] ?? 0)) }}</td>
-                                <td class="px-4 py-3 text-center text-slate-700 tabular-nums">{{ number_format((int) ($row['damage_amount_total'] ?? 0)) }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9" class="px-4 py-3 text-center text-slate-500">Мэдээлэлгүй</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        @include('admin.reports._article_category_table', [
+            'articleRows' => $articleRows ?? [],
+            'articleTableColumns' => $articleTableColumns ?? null,
+        ])
     @endif
 
     @if($tab === 'punishment')

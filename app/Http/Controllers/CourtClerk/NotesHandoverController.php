@@ -62,7 +62,6 @@ class NotesHandoverController extends Controller
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
 
         return view('admin.notes_handover.index', [
-            'headerTitle' => 'Тэмдэглэл хүлээлцэх',
             'hearings' => $hearings,
             'clerks' => collect(),
             'allMatterCategories' => $matterCategories,

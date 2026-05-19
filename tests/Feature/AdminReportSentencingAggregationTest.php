@@ -72,7 +72,10 @@ it('shows punishment and article aggregation rows on admin report', function () 
         ->assertOk()
         ->assertSee('Шийдвэрлэсэн зүйл анги')
         ->assertSee('ЭХТА 10.1-2.2')
-        ->assertSee('ЭХТА 33.1-6.4');
+        ->assertSee('ЭХТА 33.1-6.4')
+        ->assertSee('Цагаатгах')
+        ->assertSee('Торгох (нэгж)')
+        ->assertDontSee('>Нийт<', false);
 });
 
 it('does not copy first defendant hearing-level fine onto other defendants in detail rows', function () {
@@ -186,7 +189,10 @@ it('emits one defendant detail row per decided matter with per-article punishmen
             'ЭХТА 10.1-ROW-SPLIT-B',
             'ЭХТА 10.1-ROW-SPLIT-C',
         ])
-        ->and(collect($rows)->pluck('fine_units')->sort()->values()->all())->toBe(['100', '200', '300']);
+        ->and(collect($rows)->pluck('fine_units')->sort()->values()->all())->toBe(['100', '200', '300'])
+        ->and(collect($rows)->pluck('incoming_matter')->unique()->values()->all())->toBe([
+            'ЭХТА 10.1-ROW-SPLIT-A, ЭХТА 10.1-ROW-SPLIT-B, ЭХТА 10.1-ROW-SPLIT-C',
+        ]);
 });
 
 it('emits one row per matter from matter_decisions when decided_matter_ids is empty', function () {
@@ -205,6 +211,7 @@ it('emits one row per matter from matter_decisions when decided_matter_ids is em
         'hearing_date' => now()->toDateString(),
         'hour' => 10,
         'minute' => 0,
+        'matter_category_ids' => [$m1->id, $m2->id],
         'notes_decision_status' => 'Шийдвэрлэсэн',
         'notes_defendant_sentences' => [
             [
@@ -226,7 +233,7 @@ it('emits one row per matter from matter_decisions when decided_matter_ids is em
 
     expect($rows)->toHaveCount(2)
         ->and(collect($rows)->pluck('decided_matter')->all())->toBe(['ЭХТА MD-1', 'ЭХТА MD-2'])
-        ->and(collect($rows)->pluck('incoming_matter')->all())->toBe(['ЭХТА MD-1', 'ЭХТА MD-2'])
+        ->and(collect($rows)->pluck('incoming_matter')->unique()->values()->all())->toBe(['ЭХТА MD-1, ЭХТА MD-2'])
         ->and($rows[0]['decision_status'])->toBe('Ял оногдуулсан')
         ->and($rows[1]['decision_status'])->toBe('Хэрэгсэхгүй болгох');
 });

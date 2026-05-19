@@ -11,10 +11,7 @@
                 'decisionOptions' => $decisionOptions ?? [],
                 'decisionCounts' => $decisionCounts ?? [],
                 'totalScheduledHearings' => $totalScheduledHearings ?? 0,
-                'decisionFilterBaseUrl' => route('admin.notes.index', [
-                    'hearing_date_from' => \App\Support\HearingDashboardStatistics::DECISION_SUMMARY_SCHEDULED_SINCE,
-                    'hearing_date_to' => $today->copy()->endOfYear()->toDateString(),
-                ]),
+                'decisionFilterBaseUrl' => route('admin.notes.index', \App\Support\HearingDashboardStatistics::dashboardDecisionFilterQuery($today)),
             ])
         </div>
     @endif

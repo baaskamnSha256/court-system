@@ -11,10 +11,7 @@
     'decisionOptions' => $decisionOptions ?? [],
     'decisionCounts' => $decisionCounts ?? [],
     'totalScheduledHearings' => $totalScheduledHearings ?? 0,
-    'decisionFilterBaseUrl' => route('prosecutor.hearings.index', [
-        'hearing_date_from' => \App\Support\HearingDashboardStatistics::DECISION_SUMMARY_SCHEDULED_SINCE,
-        'hearing_date_to' => $today->copy()->endOfYear()->toDateString(),
-    ]),
+    'decisionFilterBaseUrl' => route('prosecutor.hearings.index', \App\Support\HearingDashboardStatistics::dashboardDecisionFilterQuery($today)),
     'dashboardUrl' => route('prosecutor.dashboard'),
 ])
 @endsection

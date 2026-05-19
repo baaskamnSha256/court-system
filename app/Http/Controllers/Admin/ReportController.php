@@ -99,6 +99,7 @@ class ReportController extends Controller
             'matterNamesById' => $matterNamesById,
             'punishmentRows' => $sentencingStats['punishmentRows'],
             'articleRows' => $sentencingStats['articleRows'],
+            'articleTableColumns' => $sentencingStats['articleTableColumns'],
             'crossRows' => $sentencingStats['crossRows'],
             'specialOutcomeRows' => $sentencingStats['specialOutcomeRows'],
             'ageGenderRows' => $sentencingStats['ageGenderRows'],

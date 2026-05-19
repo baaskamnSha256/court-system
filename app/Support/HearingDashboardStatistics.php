@@ -24,6 +24,33 @@ class HearingDashboardStatistics
     }
 
     /**
+     * Хянах самбарын шийдвэрийн картаас жагсаалт руу шилжих query (оны эхнээс).
+     *
+     * @return array{hearing_date_from: string, hearing_date_to: string, dashboard_year_view: int}
+     */
+    public static function dashboardDecisionFilterQuery(?Carbon $today = null): array
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+
+        return [
+            'hearing_date_from' => self::DECISION_SUMMARY_SCHEDULED_SINCE,
+            'hearing_date_to' => $today->copy()->endOfYear()->toDateString(),
+            'dashboard_year_view' => 1,
+        ];
+    }
+
+    public static function isDashboardYearListRequest(\Illuminate\Http\Request $request): bool
+    {
+        if ($request->boolean('dashboard_year_view')) {
+            return true;
+        }
+
+        return $request->filled('hearing_date_from')
+            && $request->filled('hearing_date_to')
+            && $request->input('hearing_date_from') === self::DECISION_SUMMARY_SCHEDULED_SINCE;
+    }
+
+    /**
      * @param  Builder<Hearing>  $query
      * @return Builder<Hearing>
      */

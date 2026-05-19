@@ -151,16 +151,7 @@ class DefendantDetailReportService
                 /** @var list<int|null> $rowMatterIds null = нэг мөр, шийдвэрлэсэн зүйл анги байхгүй */
                 $rowMatterIds = $decidedMatterIds === [] ? [null] : $decidedMatterIds;
 
-                $allMatterIds = collect($hearing->matter_category_ids ?? [])
-                    ->map(fn ($id) => (int) $id)
-                    ->filter(fn ($id) => $id > 0)
-                    ->values()
-                    ->all();
-                $allMatterNames = collect($allMatterIds)
-                    ->map(fn ($id) => $matterMap[$id] ?? null)
-                    ->filter()
-                    ->values()
-                    ->all();
+                $incomingMatterLabel = $this->formatIncomingMatter($hearing, $matterMap);
 
                 $specialOutcome = (string) ($sentence['special_outcome'] ?? '');
                 $terminationKind = (string) ($sentence['termination_kind'] ?? '');
@@ -226,11 +217,7 @@ class DefendantDetailReportService
                             ? implode(', ', array_filter(array_map(fn ($value) => trim((string) $value), $hearing->preventive_measure)))
                             : (string) ($hearing->preventive_measure ?? ''),
                         'prosecutor_name' => $prosecutorName,
-                        'incoming_matter' => ($matterIdInt !== null && $matterIdInt > 0)
-                            ? (string) ($matterMap[$matterIdInt] ?? '')
-                            : ($allMatterNames !== []
-                                ? implode(', ', $allMatterNames)
-                                : (string) ($hearing->matter_category ?? '')),
+                        'incoming_matter' => $incomingMatterLabel,
                         'defender_summary' => $lawyers,
                         'witness_names' => (string) ($hearing->witnesses ?? ''),
                         'expert_names' => (string) ($hearing->experts ?? ''),
@@ -291,6 +278,7 @@ class DefendantDetailReportService
             'victim_legal_rep',
             'preventive_measure',
             'prosecutor_name',
+            'incoming_matter',
             'defender_summary',
             'witness_names',
             'expert_names',
@@ -449,6 +437,28 @@ class DefendantDetailReportService
         }
 
         return $out;
+    }
+
+    /**
+     * @param  array<int, string>  $matterMap
+     */
+    private function formatIncomingMatter(object $hearing, array $matterMap): string
+    {
+        $names = collect($hearing->matter_category_ids ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->map(fn ($id) => $matterMap[$id] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($names !== []) {
+            return implode(', ', $names);
+        }
+
+        $legacy = trim((string) ($hearing->matter_category ?? ''));
+
+        return $legacy !== '' ? $legacy : '';
     }
 
     private function formatCaseSummaryCell(array $row): string

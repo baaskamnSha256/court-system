@@ -2,6 +2,8 @@
 
 use App\Models\Hearing;
 use App\Models\User;
+use App\Support\HearingDashboardStatistics;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 
@@ -297,6 +299,33 @@ it('shows judge hearings list title and decision columns when status filter is a
         ->assertSee('Зүйл А')
         ->assertSee('Зүйл Б')
         ->assertSee('Шийдвэрлэсэн');
+});
+
+it('lists hearings from year start when opened from dashboard decision card', function () {
+    Carbon::setTestNow('2026-05-19');
+    ensureRole('judge');
+
+    $judge = User::factory()->create();
+    $judge->assignRole('judge');
+
+    $earlyResolved = createHearing([
+        'case_no' => 'J-DASH-YEAR-001',
+        'hearing_date' => '2026-02-15',
+        'start_at' => '2026-02-15 10:00:00',
+        'notes_decision_status' => 'Шийдвэрлэсэн',
+    ]);
+    $earlyResolved->judges()->attach($judge->id, ['position' => 1]);
+
+    $this->actingAs($judge)
+        ->get(route('judge.hearings.index', array_merge(
+            HearingDashboardStatistics::dashboardDecisionFilterQuery(),
+            ['notes_decision_status' => 'Шийдвэрлэсэн']
+        )))
+        ->assertOk()
+        ->assertSee('J-DASH-YEAR-001')
+        ->assertSee('Шийдвэрийн тойм');
+
+    Carbon::setTestNow();
 });
 
 it('filters hearings by pending decision status', function () {

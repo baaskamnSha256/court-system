@@ -43,7 +43,6 @@ class ReportStatisticsService
     {
         $matterMap = MatterCategory::query()->pluck('name', 'id')->all();
         $punishmentCounts = [];
-        $articleMetrics = [];
         $crossCounts = [];
         $specialOutcomeCounts = [];
         $ageGenderCounts = [];
@@ -99,41 +98,6 @@ class ReportStatisticsService
                         ->values()
                         ->all();
                 }
-                $sentenceMatterNames = collect($sentenceMatterIds)
-                    ->map(fn ($id) => $matterMap[$id] ?? null)
-                    ->filter()
-                    ->values()
-                    ->all();
-                foreach ($sentenceMatterNames as $articleName) {
-                    $articleMetrics[$articleName] ??= [
-                        'count' => 0,
-                        'sentence_count' => 0,
-                        'no_sentence_count' => 0,
-                        'termination_count' => 0,
-                        'dismiss_count' => 0,
-                        'acquit_count' => 0,
-                        'special_outcome_count' => 0,
-                        'community_hours_total' => 0,
-                        'fine_units_total' => 0,
-                        'damage_amount_total' => 0,
-                    ];
-                    $articleMetrics[$articleName]['count']++;
-                    if ($track === 'sentence') {
-                        $articleMetrics[$articleName]['sentence_count']++;
-                    } elseif ($track === 'no_sentence') {
-                        $articleMetrics[$articleName]['no_sentence_count']++;
-                    } elseif ($track === 'termination') {
-                        $articleMetrics[$articleName]['termination_count']++;
-                        if ($terminationKind === 'dismiss') {
-                            $articleMetrics[$articleName]['dismiss_count']++;
-                        } elseif ($terminationKind === 'acquit') {
-                            $articleMetrics[$articleName]['acquit_count']++;
-                        }
-                    }
-                    if ($specialOutcome !== '' && in_array($specialOutcome, self::SPECIAL_OUTCOME_LABELS, true)) {
-                        $articleMetrics[$articleName]['special_outcome_count']++;
-                    }
-                }
                 if ($specialOutcome !== '' && in_array($specialOutcome, self::SPECIAL_OUTCOME_LABELS, true)) {
                     $specialOutcomeCounts[$specialOutcome] = (int) ($specialOutcomeCounts[$specialOutcome] ?? 0) + 1;
 
@@ -174,21 +138,6 @@ class ReportStatisticsService
                         if ($articleName === null) {
                             continue;
                         }
-                        $articleMetrics[$articleName] ??= [
-                            'count' => 0,
-                            'sentence_count' => 0,
-                            'no_sentence_count' => 0,
-                            'termination_count' => 0,
-                            'dismiss_count' => 0,
-                            'acquit_count' => 0,
-                            'special_outcome_count' => 0,
-                            'community_hours_total' => 0,
-                            'fine_units_total' => 0,
-                            'damage_amount_total' => 0,
-                        ];
-                        $articleMetrics[$articleName]['damage_amount_total'] += (int) (($punishments['fine']['damage_amount'] ?? 0));
-                        $articleMetrics[$articleName]['fine_units_total'] += (int) (($punishments['fine']['fine_units'] ?? 0));
-                        $articleMetrics[$articleName]['community_hours_total'] += (int) (($punishments['community_service']['hours'] ?? 0));
                         foreach (array_keys($punishments) as $punishmentKey) {
                             $label = self::PUNISHMENT_LABELS[$punishmentKey] ?? $punishmentKey;
                             $punishmentCounts[$label] = (int) ($punishmentCounts[$label] ?? 0) + 1;
@@ -216,24 +165,6 @@ class ReportStatisticsService
                         ->filter()
                         ->values()
                         ->all();
-                    foreach ($articleNames as $articleName) {
-                        $articleMetrics[$articleName] ??= [
-                            'count' => 0,
-                            'sentence_count' => 0,
-                            'no_sentence_count' => 0,
-                            'termination_count' => 0,
-                            'dismiss_count' => 0,
-                            'acquit_count' => 0,
-                            'special_outcome_count' => 0,
-                            'community_hours_total' => 0,
-                            'fine_units_total' => 0,
-                            'damage_amount_total' => 0,
-                        ];
-                        $articleMetrics[$articleName]['damage_amount_total'] += (int) (($punishments['fine']['damage_amount'] ?? 0));
-                        $articleMetrics[$articleName]['fine_units_total'] += (int) (($punishments['fine']['fine_units'] ?? 0));
-                        $articleMetrics[$articleName]['community_hours_total'] += (int) (($punishments['community_service']['hours'] ?? 0));
-                    }
-
                     foreach (array_keys($punishments) as $punishmentKey) {
                         $label = self::PUNISHMENT_LABELS[$punishmentKey] ?? $punishmentKey;
                         $punishmentCounts[$label] = (int) ($punishmentCounts[$label] ?? 0) + 1;
@@ -292,7 +223,6 @@ class ReportStatisticsService
         }
 
         ksort($punishmentCounts);
-        ksort($articleMetrics);
         ksort($crossCounts);
         ksort($specialOutcomeCounts);
 
@@ -323,9 +253,12 @@ class ReportStatisticsService
             ['label' => '75. Эрүүгийн хариуцлагаас чөлөөлсөн', 'value' => (int) ($specialOutcomeCounts['Эрүүгийн хариуцлагаас чөлөөлсөн'] ?? 0)],
         ];
 
+        $articleRows = (new ArticleCategoryMetricsAggregator)->buildRows($hearings, $matterMap);
+
         return [
             'punishmentRows' => collect($punishmentCounts)->map(fn ($count, $name) => ['name' => $name, 'count' => (int) $count])->values()->all(),
-            'articleRows' => collect($articleMetrics)->map(fn ($row, $name) => array_merge(['name' => $name], $row))->values()->all(),
+            'articleRows' => $articleRows,
+            'articleTableColumns' => ArticleCategoryMetricsAggregator::tableColumns(),
             'crossRows' => collect($crossCounts)->map(function ($count, $key) {
                 [$punishment, $article] = explode('|', (string) $key, 2);
 

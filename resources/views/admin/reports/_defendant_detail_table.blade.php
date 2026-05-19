@@ -7,7 +7,7 @@
 <div class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
     <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
         <div class="text-sm font-semibold text-slate-800">Шүүгдэгчийн дэлгэрэнгүй тайлан</div>
-        <div class="text-xs text-slate-500 mt-0.5">Нэг хэрэг (хурал), шүүгдэгч бүр rowspan-аар; зүйл анги, ялын мэдээлэл мөр бүрт.</div>
+        <div class="text-xs text-slate-500 mt-0.5">Нэг хэрэг (хурал) болон зүйл анги нэг мөрөнд; шүүгдэгч бүр rowspan-аар; шийдвэрлэсэн зүйл анги, ялын мэдээлэл мөр бүрт.</div>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm table-auto min-w-[1700px] border-collapse">

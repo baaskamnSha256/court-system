@@ -41,6 +41,9 @@
             @if(request()->filled('hearing_date_to'))
                 <input type="hidden" name="hearing_date_to" value="{{ request('hearing_date_to') }}">
             @endif
+            @if(request()->boolean('dashboard_year_view'))
+                <input type="hidden" name="dashboard_year_view" value="1">
+            @endif
             <div class="min-w-[200px] flex-1">
                 <label for="q" class="block text-xs font-medium text-slate-500 mb-1">Хэргийн дугаар, шүүгдэгч, танхим</label>
                 <input type="text" name="q" id="q" value="{{ request('q') }}"

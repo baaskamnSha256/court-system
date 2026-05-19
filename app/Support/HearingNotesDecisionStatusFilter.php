@@ -15,6 +15,11 @@ class HearingNotesDecisionStatusFilter
         });
     }
 
+    public static function applyExcludingIssued(Builder $query): void
+    {
+        $query->where('notes_handover_issued', false);
+    }
+
     public static function apply(Builder $query, string $status): void
     {
         $status = trim($status);

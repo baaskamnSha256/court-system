@@ -56,13 +56,27 @@ class ReportExportService implements ReportExportServiceInterface
         }
 
         $r += 1;
-        $sheet->setCellValue("A{$r}", 'Шийдвэрлэсэн зүйл анги');
-        $sheet->setCellValue("B{$r}", 'Тоо');
-        $sheet->getStyle("A{$r}:B{$r}")->getFont()->setBold(true);
+        $articleColumns = $sentencingStats['articleTableColumns'] ?? ArticleCategoryMetricsAggregator::tableColumns();
+        $sheet->setCellValue("A{$r}", 'Зүйл анги');
+        $colIndex = 1;
+        foreach ($articleColumns as $column) {
+            $sheet->setCellValueByColumnAndRow($colIndex + 1, $r, (string) $column['label']);
+            $colIndex++;
+        }
+        $lastCol = Coordinate::stringFromColumnIndex($colIndex + 1);
+        $sheet->getStyle("A{$r}:{$lastCol}{$r}")->getFont()->setBold(true);
         $r++;
         foreach ($sentencingStats['articleRows'] as $row) {
             $sheet->setCellValue("A{$r}", (string) $row['name']);
-            $sheet->setCellValue("B{$r}", (int) $row['count']);
+            $colIndex = 1;
+            foreach ($articleColumns as $column) {
+                $sheet->setCellValueByColumnAndRow(
+                    $colIndex + 1,
+                    $r,
+                    (int) ($row[$column['key']] ?? 0)
+                );
+                $colIndex++;
+            }
             $r++;
         }
 

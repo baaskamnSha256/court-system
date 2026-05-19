@@ -1,6 +1,11 @@
 
 @extends('layouts.dashboard')
-@section('header', $headerTitle ?? 'Тэмдэглэл хүлээлцэх')
+@php
+    $pageHeader = trim((string) ($headerTitle ?? ''));
+@endphp
+@if($pageHeader !== '')
+    @section('header', $pageHeader)
+@endif
 
 @section('content')
 <div class="space-y-6">
@@ -30,6 +35,18 @@
             $currentClerkName = auth()->user()?->name;
         @endphp
         <form method="GET" action="{{ route($notesPrefix . '.notes.index') }}" class="flex flex-wrap items-end gap-3">
+            @if(request()->filled('notes_decision_status'))
+                <input type="hidden" name="notes_decision_status" value="{{ request('notes_decision_status') }}">
+            @endif
+            @if(request()->filled('hearing_date_from'))
+                <input type="hidden" name="hearing_date_from" value="{{ request('hearing_date_from') }}">
+            @endif
+            @if(request()->filled('hearing_date_to'))
+                <input type="hidden" name="hearing_date_to" value="{{ request('hearing_date_to') }}">
+            @endif
+            @if(request()->boolean('dashboard_year_view'))
+                <input type="hidden" name="dashboard_year_view" value="1">
+            @endif
             <div class="min-w-[200px] flex-1">
                 <label for="q" class="block text-xs font-medium text-slate-500 mb-1">Хэргийн дугаар, шүүгдэгч, танхим</label>
                 <input type="text" name="q" id="q" value="{{ request('q') }}"

@@ -6,6 +6,8 @@ use App\Http\Controllers\Concerns\ScopesHearingsFromToday;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
+use App\Support\HearingDashboardStatistics;
+use App\Support\HearingNotesDecisionStatusFilter;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -139,7 +141,9 @@ class HearingsController extends Controller
 
     private function applyFilters(Request $request, Builder $query): void
     {
-        $this->applyHearingsVisibleFromToday($query);
+        if (! HearingDashboardStatistics::isDashboardYearListRequest($request)) {
+            $this->applyHearingsVisibleFromToday($query);
+        }
 
         if ($request->filled('q')) {
             $search = '%'.$request->input('q').'%';
@@ -175,15 +179,10 @@ class HearingsController extends Controller
         }
 
         if ($request->filled('notes_decision_status')) {
-            $status = (string) $request->input('notes_decision_status');
-            if ($status === '__pending__') {
-                $query->where(function (Builder $builder) {
-                    $builder->whereNull('notes_decision_status')
-                        ->orWhere('notes_decision_status', '');
-                });
-            } else {
-                $query->where('notes_decision_status', $status);
-            }
+            HearingNotesDecisionStatusFilter::apply(
+                $query,
+                trim((string) $request->input('notes_decision_status'))
+            );
         }
     }
 

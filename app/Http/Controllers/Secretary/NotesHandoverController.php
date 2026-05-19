@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Secretary;
 
-use App\Http\Controllers\Concerns\NormalizesNotesDefendantSentences;
 use App\Http\Controllers\Concerns\BuildsNotesHandoverIndexQuery;
+use App\Http\Controllers\Concerns\NormalizesNotesDefendantSentences;
 use App\Http\Controllers\Controller;
 use App\Models\Hearing;
 use App\Models\MatterCategory;
@@ -57,7 +57,6 @@ class NotesHandoverController extends Controller
         $matterCategories = MatterCategory::orderBy('sort_order')->orderBy('name')->get();
 
         return view('admin.notes_handover.index', [
-            'headerTitle' => 'Тэмдэглэл хүлээлцэх',
             'hearings' => $hearings,
             'clerks' => $clerks,
             'allMatterCategories' => $matterCategories,
