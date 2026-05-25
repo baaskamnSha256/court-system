@@ -44,12 +44,6 @@ class NotesHandoverController extends Controller
                     ->orWhere('defendants', 'like', "%{$q}%");
             });
         }
-        if ($request->filled('notes_handover_issued')) {
-            $issued = filter_var($request->input('notes_handover_issued'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($issued !== null) {
-                $query->where('notes_handover_issued', $issued);
-            }
-        }
 
         $hearings = $query
             ->orderBy('hearing_date')

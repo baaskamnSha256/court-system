@@ -25,8 +25,21 @@ trait BuildsNotesHandoverIndexQuery
             );
         }
 
-        if (! $request->filled('notes_handover_issued')
-            && ! HearingDashboardStatistics::isDashboardYearListRequest($request)) {
+        if ($request->filled('notes_handover_issued')) {
+            $issued = filter_var(
+                $request->input('notes_handover_issued'),
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+
+            if ($issued !== null) {
+                $query->where('notes_handover_issued', $issued);
+            }
+
+            return $query;
+        }
+
+        if (! HearingDashboardStatistics::isDashboardYearListRequest($request)) {
             HearingNotesDecisionStatusFilter::applyExcludingIssued($query);
         }
 

@@ -35,6 +35,17 @@
                 <div class="text-xs text-slate-500 mt-1">Тухайн текст нь файл дотор таарвал бүхэлд нь масклагдана.</div>
             </div>
 
+            <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Нууцлахгүй нэрүүд (1 мөрөнд 1)</label>
+                <textarea name="exclude_phrases" rows="4"
+                          placeholder="Жишээ:\nД.Шарав\nБ.Алтан\nО.Амар\n..."
+                          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500">{{ old('exclude_phrases') }}</textarea>
+                @error('exclude_phrases')
+                    <div class="text-xs text-red-600 mt-1">{{ $message }}</div>
+                @enderror
+                <div class="text-xs text-slate-500 mt-1">Шүүгч, өмгөөлөгч, улсын яллагчийн нэрийг энд оруулна. Автомат нэр нууцлах идэвхтэй байсан ч эдгээр нэр үлдэнэ.</div>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="flex items-center gap-2 text-sm text-slate-700">
                     <input type="checkbox" name="auto_phone" value="1" class="rounded border-slate-300" @checked(old('auto_phone'))>
@@ -49,8 +60,12 @@
                     Машины дугаар нууцлах
                 </label>
                 <label class="flex items-center gap-2 text-sm text-slate-700">
-                    <input type="checkbox" name="auto_initial_name" value="1" class="rounded border-slate-300" @checked(old('auto_initial_name'))>
+                    <input type="checkbox" name="auto_initial_name" value="1" class="rounded border-slate-300" @checked(old('auto_initial_name', true))>
                     Нэр нууцлах (инициал + эхний үсэг үлдээж)
+                </label>
+                <label class="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="auto_ovogt_name" value="1" class="rounded border-slate-300" @checked(old('auto_ovogt_name', true))>
+                    «Овогт …ийн …» хэлбэр нууцлах
                 </label>
                 <div class="flex items-center gap-2">
                     <label class="text-sm text-slate-700">Нууцлах тэмдэг:</label>
